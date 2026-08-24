@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Heart, Coins, Key, Zap, Pause, Play, RotateCcw, Volume2, VolumeX, Shield, Sparkles } from 'lucide-react';
+import { Heart, Coins, Key, Zap, Pause, Play, RotateCcw, Volume2, VolumeX, Shield, Sparkles, Maximize2, Minimize2 } from 'lucide-react';
 import { GameEngine } from '../engine/GameEngine';
 import { HERO_CLASSES } from '../data/defaultLevels';
 import { GameSettings, HeroClassType, LevelData } from '../types';
@@ -24,6 +24,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onRestart,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
   // In-Game UI state
@@ -37,8 +38,48 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const [bossHp, setBossHp] = useState<{ current: number; max: number; name: string } | null>(null);
   const [specialCooldown, setSpecialCooldown] = useState(0);
   const [timerDisplay, setTimerDisplay] = useState('00:00.0');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
 
   const heroConfig = HERO_CLASSES[heroType];
+
+  // Detect orientation & screen dimensions
+  useEffect(() => {
+    const handleResize = () => {
+      const isLand = window.innerWidth > window.innerHeight;
+      setIsLandscape(isLand);
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    document.addEventListener('fullscreenchange', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      document.removeEventListener('fullscreenchange', handleResize);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (containerRef.current?.requestFullscreen) {
+          await containerRef.current.requestFullscreen();
+        } else if ((document.documentElement as any).requestFullscreen) {
+          await (document.documentElement as any).requestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch (e) {
+      console.warn('Fullscreen error:', e);
+    }
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -158,14 +199,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#0f0c29] overflow-hidden select-none">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full flex flex-col items-center justify-center bg-[#0f0c29] overflow-hidden select-none"
+    >
       {/* Background Cyber Grid */}
       <div className="absolute inset-0 vibrant-grid opacity-25 pointer-events-none" />
       <div className="absolute top-10 right-10 w-48 h-48 bg-[#FF416C] rounded-full blur-[90px] opacity-20 pointer-events-none" />
       <div className="absolute bottom-10 left-10 w-60 h-60 bg-[#00B4DB] rounded-full blur-[100px] opacity-20 pointer-events-none" />
 
       {/* Canvas Viewport Container with 16:9 Aspect Ratio & Vibrant Border */}
-      <div className="relative w-full max-w-5xl aspect-video max-h-[76vh] flex items-center justify-center rounded-2xl overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.8)] border-4 border-[#302b63] bg-[#24243e]">
+      <div
+        className={`relative w-full max-w-5xl aspect-video flex items-center justify-center rounded-2xl overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.8)] border-4 border-[#302b63] bg-[#24243e] ${
+          isLandscape ? 'max-h-[96vh] sm:max-h-[85vh]' : 'max-h-[72vh]'
+        }`}
+      >
         <canvas
           ref={canvasRef}
           className="w-full h-full pixelated block object-contain"
@@ -179,40 +227,40 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         {settings.crtFilter && <div className="absolute inset-0 crt-overlay crt-flicker pointer-events-none z-10" />}
 
         {/* TOP HUD BAR (Vibrant Palette Theme) */}
-        <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20">
+        <div className="absolute top-2 sm:top-3 left-2 sm:left-3 right-2 sm:right-3 flex items-center justify-between pointer-events-none z-20">
           {/* LEFT: Hero Tag & Crystals/Coins */}
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
             {/* Hero Class Tag */}
-            <div className="bg-[#1a1a2e] rounded-2xl py-1 px-3.5 border-3 border-white flex flex-col justify-center shadow-[3px_3px_0_0_#000]">
-              <span className="text-[8px] uppercase font-black text-[#8E9299] tracking-widest leading-none">Hero</span>
-              <span className="text-xs sm:text-sm font-black text-white italic tracking-tighter uppercase leading-tight">
+            <div className="bg-[#1a1a2e]/90 backdrop-blur-md rounded-xl sm:rounded-2xl py-0.5 sm:py-1 px-2.5 sm:px-3.5 border-2 sm:border-3 border-white flex flex-col justify-center shadow-[3px_3px_0_0_#000]">
+              <span className="text-[7px] sm:text-[8px] uppercase font-black text-[#8E9299] tracking-widest leading-none">Hero</span>
+              <span className="text-[11px] sm:text-sm font-black text-white italic tracking-tighter uppercase leading-tight">
                 {heroConfig.name}
               </span>
             </div>
 
             {/* Crystals / Coins Counter */}
-            <div className="bg-[#1a1a2e] rounded-2xl py-1 px-3.5 border-3 border-white flex flex-col justify-center shadow-[3px_3px_0_0_#000]">
-              <span className="text-[8px] uppercase font-black text-[#8E9299] tracking-widest leading-none">Crystals</span>
-              <span className="text-xs sm:text-sm font-black text-[#00FFD1] leading-tight flex items-center gap-1 font-mono">
+            <div className="bg-[#1a1a2e]/90 backdrop-blur-md rounded-xl sm:rounded-2xl py-0.5 sm:py-1 px-2.5 sm:px-3.5 border-2 sm:border-3 border-white flex flex-col justify-center shadow-[3px_3px_0_0_#000]">
+              <span className="text-[7px] sm:text-[8px] uppercase font-black text-[#8E9299] tracking-widest leading-none">Crystals</span>
+              <span className="text-[11px] sm:text-sm font-black text-[#00FFD1] leading-tight flex items-center gap-1 font-mono">
                 <Coins size={12} className="text-[#00FFD1]" /> {coins.toString().padStart(2, '0')}
               </span>
             </div>
 
             {keys > 0 && (
-              <div className="bg-[#1a1a2e] rounded-2xl py-1 px-3 border-3 border-[#FFD700] flex items-center gap-1 shadow-[3px_3px_0_0_#000]">
-                <Key size={13} className="text-[#FFD700]" />
+              <div className="bg-[#1a1a2e]/90 backdrop-blur-md rounded-xl sm:rounded-2xl py-0.5 sm:py-1 px-2.5 border-2 sm:border-3 border-[#FFD700] flex items-center gap-1 shadow-[3px_3px_0_0_#000]">
+                <Key size={12} className="text-[#FFD700]" />
                 <span className="text-xs font-black text-[#FFD700] font-mono">{keys}</span>
               </div>
             )}
           </div>
 
           {/* CENTER: Health Meter with Vibrant Pips */}
-          <div className="bg-[#1a1a2e] rounded-2xl py-1 px-4 border-3 border-white flex flex-col items-center justify-center shadow-[3px_3px_0_0_#000] pointer-events-auto">
-            <div className="flex items-center gap-1.5">
+          <div className="bg-[#1a1a2e]/90 backdrop-blur-md rounded-xl sm:rounded-2xl py-0.5 sm:py-1 px-3 sm:px-4 border-2 sm:border-3 border-white flex flex-col items-center justify-center shadow-[3px_3px_0_0_#000] pointer-events-auto">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               {Array.from({ length: maxHealth }).map((_, idx) => (
                 <div
                   key={idx}
-                  className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-black shadow-[1px_1px_0_0_#000] transition-all ${
+                  className={`w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full border border-black sm:border-2 shadow-[1px_1px_0_0_#000] transition-all ${
                     idx < health
                       ? 'bg-[#FF416C] shadow-[0_0_8px_#FF416C]'
                       : 'bg-white/10'
@@ -220,15 +268,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 />
               ))}
             </div>
-            <span className="text-[7px] sm:text-[8px] font-black text-[#8E9299] uppercase tracking-widest mt-0.5 leading-none">
-              Health Meter
+            <span className="text-[6px] sm:text-[8px] font-black text-[#8E9299] uppercase tracking-widest mt-0.5 leading-none">
+              Health
             </span>
           </div>
 
-          {/* RIGHT: Zone Tag, Special Skill & Pause */}
-          <div className="flex items-center gap-2 pointer-events-auto">
+          {/* RIGHT: Zone Tag, Special Skill, Fullscreen & Pause */}
+          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
             {/* Zone Tag */}
-            <div className="hidden sm:flex bg-[#1a1a2e] rounded-2xl py-1 px-3.5 border-3 border-white flex-col justify-center shadow-[3px_3px_0_0_#000] text-right">
+            <div className="hidden md:flex bg-[#1a1a2e]/90 backdrop-blur-md rounded-2xl py-1 px-3.5 border-3 border-white flex-col justify-center shadow-[3px_3px_0_0_#000] text-right">
               <span className="text-[8px] uppercase font-black text-[#8E9299] tracking-widest leading-none">Zone</span>
               <span className="text-xs sm:text-sm font-black text-[#FF6B6B] italic tracking-tighter uppercase leading-tight">
                 {level.name}
@@ -237,37 +285,46 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
             {/* Special Skill Button Pill */}
             <div
-              className={`px-3 py-1.5 rounded-2xl border-3 font-pixel text-[9px] flex items-center gap-1.5 shadow-[3px_3px_0_0_#000] transition-all ${
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border-2 sm:border-3 font-pixel text-[8px] sm:text-[9px] flex items-center gap-1 sm:gap-1.5 shadow-[3px_3px_0_0_#000] transition-all ${
                 specialCooldown <= 0
                   ? 'bg-[#00B4DB] border-white text-black font-black shadow-[0_0_12px_rgba(0,180,219,0.5)]'
                   : 'bg-[#1a1a2e] border-white/60 text-[#8E9299]'
               }`}
             >
-              <Zap size={12} className={specialCooldown <= 0 ? 'fill-black text-black' : ''} />
+              <Zap size={11} className={specialCooldown <= 0 ? 'fill-black text-black' : ''} />
               <span>{specialCooldown <= 0 ? 'BOOST' : `${specialCooldown.toFixed(1)}s`}</span>
             </div>
+
+            {/* Fullscreen Button */}
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 sm:p-2 bg-[#1a1a2e] hover:bg-[#24243e] border-2 sm:border-3 border-white text-[#00FFD1] rounded-xl sm:rounded-2xl active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all shadow-[3px_3px_0_0_#000]"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
 
             {/* Pause Button */}
             <button
               onClick={handleTogglePause}
-              className="p-2 bg-[#1a1a2e] hover:bg-[#24243e] border-3 border-white text-white rounded-2xl active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all shadow-[3px_3px_0_0_#000]"
+              className="p-1.5 sm:p-2 bg-[#1a1a2e] hover:bg-[#24243e] border-2 sm:border-3 border-white text-white rounded-xl sm:rounded-2xl active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all shadow-[3px_3px_0_0_#000]"
               title="Pause Game"
             >
-              {isPaused ? <Play size={14} className="text-[#FFD700]" /> : <Pause size={14} className="text-white" />}
+              {isPaused ? <Play size={13} className="text-[#FFD700]" /> : <Pause size={13} className="text-white" />}
             </button>
           </div>
         </div>
 
         {/* BOSS HEALTH BAR (If fighting boss) */}
         {bossHp && bossHp.current > 0 && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 w-80 sm:w-[420px] bg-[#1a1a2e] border-3 border-white rounded-2xl p-2.5 z-20 text-center pointer-events-none shadow-[6px_6px_0_0_#000]">
-            <div className="flex items-center justify-between text-[10px] uppercase font-black tracking-widest text-[#FF416C] mb-1">
+          <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 w-72 sm:w-[420px] bg-[#1a1a2e] border-3 border-white rounded-2xl p-2 sm:p-2.5 z-20 text-center pointer-events-none shadow-[6px_6px_0_0_#000]">
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-[#FF416C] mb-1">
               <span className="italic">{bossHp.name}</span>
               <span className="font-mono text-[#FFD700]">
                 {bossHp.current} / {bossHp.max} HP
               </span>
             </div>
-            <div className="w-full h-4 bg-black rounded-xl border-2 border-black overflow-hidden p-0.5">
+            <div className="w-full h-3.5 sm:h-4 bg-black rounded-xl border-2 border-black overflow-hidden p-0.5">
               <div
                 className="h-full bg-gradient-to-r from-[#FF416C] via-[#FF0080] to-[#FFD700] rounded-lg transition-all duration-200 shadow-[0_0_10px_#FF416C]"
                 style={{ width: `${Math.max(0, (bossHp.current / bossHp.max) * 100)}%` }}
@@ -279,31 +336,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         {/* PAUSE MODAL OVERLAY (Vibrant Palette) */}
         {isPaused && (
           <div className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center z-30 font-sans">
-            <div className="bg-[#1a1a2e] border-4 border-white p-7 rounded-3xl text-center max-w-sm w-full mx-4 shadow-[8px_8px_0_0_#000] space-y-4">
+            <div className="bg-[#1a1a2e] border-4 border-white p-6 sm:p-7 rounded-3xl text-center max-w-sm w-full mx-4 shadow-[8px_8px_0_0_#000] space-y-3 sm:space-y-4">
               <div className="space-y-1">
                 <span className="text-[10px] font-black uppercase text-[#FFD700] tracking-widest">SYSTEM_READY_07</span>
-                <h2 className="text-3xl font-black text-white italic tracking-tighter">GAME PAUSED</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-white italic tracking-tighter">GAME PAUSED</h2>
               </div>
               <p className="text-xs text-[#8E9299] font-mono leading-relaxed">
                 Stage: <span className="text-[#00FFD1] font-bold">{level.name}</span> • Timer: {timerDisplay}
               </p>
 
-              <div className="flex flex-col gap-2.5 pt-2">
+              <div className="flex flex-col gap-2 pt-2">
                 <button
                   onClick={handleTogglePause}
-                  className="w-full py-3.5 bg-[#FFD700] hover:bg-[#ffea00] text-black font-black text-xs rounded-xl shadow-[4px_4px_0_0_#B8860B] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#B8860B] transition-all flex items-center justify-center gap-2 border-3 border-black uppercase italic"
+                  className="w-full py-3 sm:py-3.5 bg-[#FFD700] hover:bg-[#ffea00] text-black font-black text-xs rounded-xl shadow-[4px_4px_0_0_#B8860B] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#B8860B] transition-all flex items-center justify-center gap-2 border-3 border-black uppercase italic"
                 >
                   <Play size={16} className="fill-black" /> RESUME GAME
                 </button>
                 <button
                   onClick={onRestart}
-                  className="w-full py-3 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all flex items-center justify-center gap-2 uppercase"
+                  className="w-full py-2.5 sm:py-3 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all flex items-center justify-center gap-2 uppercase"
                 >
                   <RotateCcw size={14} className="text-[#00FFD1]" /> RESTART STAGE
                 </button>
                 <button
                   onClick={onExitToMenu}
-                  className="w-full py-2.5 bg-[#1a1a2e] hover:bg-[#FF416C] text-[#8E9299] hover:text-white font-black text-xs rounded-xl border-2 border-white/60 transition-all uppercase"
+                  className="w-full py-2 bg-[#1a1a2e] hover:bg-[#FF416C] text-[#8E9299] hover:text-white font-black text-xs rounded-xl border-2 border-white/60 transition-all uppercase"
                 >
                   QUIT TO MENU
                 </button>
@@ -315,31 +372,31 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         {/* GAME OVER OVERLAY (Vibrant Palette) */}
         {isGameOver && (
           <div className="absolute inset-0 bg-[#0f0c29]/90 backdrop-blur-md flex flex-col items-center justify-center z-30 font-sans">
-            <div className="bg-[#1a1a2e] border-4 border-[#FF416C] p-7 rounded-3xl text-center max-w-sm w-full mx-4 shadow-[8px_8px_0_0_#000] space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="bg-[#1a1a2e] border-4 border-[#FF416C] p-6 sm:p-7 rounded-3xl text-center max-w-sm w-full mx-4 shadow-[8px_8px_0_0_#000] space-y-3 sm:space-y-4 animate-in fade-in zoom-in duration-200">
               <div className="space-y-1">
                 <span className="text-[10px] font-black uppercase text-[#FF416C] tracking-widest">CRITICAL FAILURE</span>
-                <h2 className="text-3xl font-black text-[#FF416C] italic tracking-tighter">YOU DIED</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-[#FF416C] italic tracking-tighter">YOU DIED</h2>
               </div>
               <p className="text-xs text-[#8E9299] font-mono leading-relaxed">
                 You fell in battle. Respawn at the last activated checkpoint or restart the zone.
               </p>
 
-              <div className="flex flex-col gap-2.5 pt-2">
+              <div className="flex flex-col gap-2 pt-2">
                 <button
                   onClick={handleRespawn}
-                  className="w-full py-3.5 bg-[#FF416C] hover:bg-[#ff577f] text-white font-black text-xs rounded-xl shadow-[4px_4px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all flex items-center justify-center gap-2 border-3 border-black uppercase italic"
+                  className="w-full py-3 sm:py-3.5 bg-[#FF416C] hover:bg-[#ff577f] text-white font-black text-xs rounded-xl shadow-[4px_4px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all flex items-center justify-center gap-2 border-3 border-black uppercase italic"
                 >
                   <RotateCcw size={16} /> RESPAWN AT CHECKPOINT
                 </button>
                 <button
                   onClick={onRestart}
-                  className="w-full py-3 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all flex items-center justify-center gap-2 uppercase"
+                  className="w-full py-2.5 sm:py-3 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] transition-all flex items-center justify-center gap-2 uppercase"
                 >
                   RESTART STAGE
                 </button>
                 <button
                   onClick={onExitToMenu}
-                  className="w-full py-2.5 bg-[#1a1a2e] hover:bg-neutral-800 text-[#8E9299] font-black text-xs rounded-xl border-2 border-white/60 transition-all uppercase"
+                  className="w-full py-2 bg-[#1a1a2e] hover:bg-neutral-800 text-[#8E9299] font-black text-xs rounded-xl border-2 border-white/60 transition-all uppercase"
                 >
                   EXIT TO MENU
                 </button>
@@ -347,10 +404,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             </div>
           </div>
         )}
+
+        {/* If in mobile landscape, render floating overlay controls directly over viewport */}
+        {isLandscape && (
+          <VirtualControls
+            engineRef={engineRef}
+            showOnScreen={settings.showTouchControls}
+            isLandscapeOverlay={true}
+          />
+        )}
       </div>
 
-      {/* VIRTUAL CONTROLS FOR MOBILE / TOUCH / GAMEPAD */}
-      <VirtualControls engineRef={engineRef} showOnScreen={settings.showTouchControls} />
+      {/* Non-landscape virtual controls / keyboard guide below canvas */}
+      {!isLandscape && (
+        <VirtualControls
+          engineRef={engineRef}
+          showOnScreen={settings.showTouchControls}
+          isLandscapeOverlay={false}
+        />
+      )}
     </div>
   );
 };
