@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Outfit', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    background-color: #0f0c29;
+    color: #ffffff;
+  }
+}
+
+.font-pixel {
+  font-family: 'Press Start 2P', cursive;
+}
+
+.font-arcade {
+  font-family: 'VT323', monospace;
+}
+
+.pixelated {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Vibrant Palette Cyber Grid */
+.vibrant-grid {
+  background-image: 
+    linear-gradient(#302b63 1px, transparent 1px), 
+    linear-gradient(90deg, #302b63 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Neo-arcade shadows */
+.neo-shadow-black {
+  box-shadow: 4px 4px 0 0 #000000;
+}
+
+.neo-shadow-gold {
+  box-shadow: 4px 4px 0 0 #B8860B;
+}
+
+.neo-shadow-purple {
+  box-shadow: 4px 4px 0 0 #2E008C;
+}
+
+.neo-shadow-pink {
+  box-shadow: 4px 4px 0 0 #9E0045;
+}
+
+/* CRT Scanline Filter effect */
+.crt-overlay {
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.25) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 128, 0.04),
+    rgba(0, 255, 209, 0.03),
+    rgba(74, 0, 224, 0.04)
+  );
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
+}
+
+.crt-flicker {
+  animation: crtFlicker 0.15s infinite;
+}
+
+@keyframes crtFlicker {
+  0% { opacity: 0.98; }
+  50% { opacity: 1; }
+  100% { opacity: 0.99; }
+}
+
+/* Custom scrollbars with Vibrant theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f0c29;
+  border-left: 1px solid #302b63;
+}
+::-webkit-scrollbar-thumb {
+  background: #4A00E0;
+  border-radius: 4px;
+  border: 1px solid #8E2DE2;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF416C;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Pixel Quest: 2D Retro Platformer",
+  "description": "A feature-rich 2D retro pixel art platformer with responsive controls, multiple worlds, hero classes, enemy AI, chiptune sound engine, CRT filters, and a built-in level editor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
