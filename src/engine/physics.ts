@@ -22,6 +22,7 @@ export interface CollisionResult {
   isOnCeiling: boolean;
   isOnLeftWall: boolean;
   isOnRightWall: boolean;
+  isOnIce: boolean;
   hitHazard: boolean;
   hitSpring: boolean;
 }
@@ -37,6 +38,7 @@ export function resolveTileCollisions(
   let isOnCeiling = false;
   let isOnLeftWall = false;
   let isOnRightWall = false;
+  let isOnIce = false;
   let hitHazard = false;
   let hitSpring = false;
 
@@ -54,7 +56,7 @@ export function resolveTileCollisions(
   for (let ty = minTileY; ty <= maxTileY; ty++) {
     for (let tx = minTileX; tx <= maxTileX; tx++) {
       const tile = tiles[ty][tx];
-      if (tile === 'solid' || tile === 'breakable') {
+      if (tile === 'solid' || tile === 'breakable' || tile === 'ice') {
         if (vx > 0) {
           x = tx * tileSize - w;
           vx = 0;
@@ -80,11 +82,12 @@ export function resolveTileCollisions(
     for (let tx = minTileX; tx <= maxTileX; tx++) {
       const tile = tiles[ty][tx];
 
-      if (tile === 'solid' || tile === 'breakable') {
+      if (tile === 'solid' || tile === 'breakable' || tile === 'ice') {
         if (vy > 0) {
           y = ty * tileSize - h;
           vy = 0;
           isGrounded = true;
+          if (tile === 'ice') isOnIce = true;
         } else if (vy < 0) {
           y = (ty + 1) * tileSize;
           vy = 0;
@@ -123,6 +126,7 @@ export function resolveTileCollisions(
     isOnCeiling,
     isOnLeftWall,
     isOnRightWall,
+    isOnIce,
     hitHazard,
     hitSpring,
   };

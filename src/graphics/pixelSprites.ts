@@ -625,6 +625,8 @@ export function drawTile(
 
   if (tile === 'solid') {
     drawSolidBlock(ctx, drawX, drawY, size, biome);
+  } else if (tile === 'ice') {
+    drawIceBlock(ctx, drawX, drawY, size);
   } else if (tile === 'solid_top') {
     drawOneWayPlatform(ctx, drawX, drawY, size, biome);
   } else if (tile.startsWith('spike')) {
@@ -636,6 +638,21 @@ export function drawTile(
   } else if (tile === 'breakable') {
     drawBreakableBlock(ctx, drawX, drawY, size, biome);
   }
+}
+
+function drawIceBlock(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  // Translucent glacier ice block
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+  // Gloss shine
+  ctx.fillStyle = '#e0f2fe';
+  ctx.fillRect(x + 2, y + 2, size - 4, 3);
+  ctx.fillRect(x + 2, y + 5, 3, size - 7);
+  // Ice refraction line
+  ctx.fillStyle = '#0ea5e9';
+  ctx.fillRect(x + 6, y + 7, size - 8, 2);
 }
 
 function drawSolidBlock(
@@ -682,6 +699,20 @@ function drawSolidBlock(
     ctx.fillRect(x + 5, y + 5, 4, 1);
     ctx.fillStyle = '#f97316';
     ctx.fillRect(x + 6, y + 5, 2, 1);
+  } else if (biome === 'frost') {
+    // Frostpeak Ice Stone with snow cap
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+    // Snow cap
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(x, y, size, 3);
+    ctx.fillStyle = '#bae6fd';
+    ctx.fillRect(x + 1, y + 3, size - 2, 2);
+    // Frozen icicle fleck
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(x + 4, y + 8, 2, 3);
   } else {
     // Cyber Matrix Tower
     ctx.fillStyle = '#09090b';

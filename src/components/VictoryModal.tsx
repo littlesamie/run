@@ -1,6 +1,7 @@
 import React from 'react';
-import { Star, Trophy, Clock, Coins, RotateCcw, ArrowRight, Home } from 'lucide-react';
+import { Star, Trophy, Clock, Coins, RotateCcw, ArrowRight, Home, Sparkles, Check } from 'lucide-react';
 import { soundManager } from '../audio/SoundManager';
+import { HandheldSkin, SkinConfig } from '../types';
 
 interface VictoryModalProps {
   levelName: string;
@@ -12,6 +13,8 @@ interface VictoryModalProps {
   onReplay: () => void;
   onMenu: () => void;
   hasNextLevel: boolean;
+  newlyUnlockedSkin?: SkinConfig | null;
+  onEquipSkin?: (skin: HandheldSkin) => void;
 }
 
 export const VictoryModal: React.FC<VictoryModalProps> = ({
@@ -24,10 +27,14 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   onReplay,
   onMenu,
   hasNextLevel,
+  newlyUnlockedSkin,
+  onEquipSkin,
 }) => {
+  const [equipped, setEquipped] = React.useState(false);
+
   // Calculate stars:
   // 1 Star: Beat level
-  // 2 Stars: Under targetTime * 1.3
+  // 2 Stars: Under targetTime * 1.35
   // 3 Stars: Under targetTime
   let stars = 1;
   if (clearTime <= targetTime) stars = 3;
@@ -37,7 +44,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-[#0f0c29]/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in zoom-in-95 duration-200 font-sans">
-      <div className="bg-[#1a1a2e] border-4 border-white rounded-3xl max-w-md w-full p-7 shadow-[8px_8px_0_0_#000] space-y-6 text-center">
+      <div className="bg-[#1a1a2e] border-4 border-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-[8px_8px_0_0_#000] space-y-5 text-center">
         {/* HEADER */}
         <div className="space-y-1">
           <span className="text-[10px] font-black uppercase text-[#00FFD1] tracking-widest">
@@ -63,8 +70,51 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
           ))}
         </div>
 
+        {/* NEW SKIN UNLOCKED CELEBRATION BANNER */}
+        {newlyUnlockedSkin && (
+          <div className="p-3.5 bg-gradient-to-r from-[#24243e] to-[#1a1a2e] border-3 border-[#FFD700] rounded-2xl text-left shadow-[0_0_16px_rgba(255,215,0,0.3)] animate-pulse">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[9px] font-pixel text-[#FFD700] flex items-center gap-1 font-bold">
+                <Sparkles size={12} /> NEW HARDWARE UNLOCKED!
+              </span>
+              <span className="text-[8px] font-mono text-[#8E9299]">Level Reward</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black text-white uppercase italic">{newlyUnlockedSkin.name}</h4>
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[7.5px] font-pixel font-bold uppercase border border-black"
+                    style={{ backgroundColor: newlyUnlockedSkin.themeColor, color: '#000' }}
+                  >
+                    {newlyUnlockedSkin.capability.badge}
+                  </span>
+                  <span className="text-[10px] text-neutral-300 font-sans">
+                    {newlyUnlockedSkin.capability.name}
+                  </span>
+                </div>
+              </div>
+
+              {onEquipSkin && (
+                <button
+                  onClick={() => {
+                    soundManager.playCoin();
+                    onEquipSkin(newlyUnlockedSkin.id);
+                    setEquipped(true);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-pixel text-[8.5px] font-bold border border-black shadow-sm active:translate-y-0.5 transition-all shrink-0 ${
+                    equipped ? 'bg-[#00FFD1] text-black' : 'bg-[#FFD700] hover:bg-[#ffea00] text-black'
+                  }`}
+                >
+                  {equipped ? <span className="flex items-center gap-1"><Check size={10} /> EQUIPPED</span> : 'EQUIP NOW'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* STATS BREAKDOWN */}
-        <div className="bg-[#24243e] border-3 border-white rounded-2xl p-4.5 space-y-2.5 text-xs font-mono shadow-[4px_4px_0_0_#000]">
+        <div className="bg-[#24243e] border-3 border-white rounded-2xl p-4 space-y-2 text-xs font-mono shadow-[4px_4px_0_0_#000]">
           <div className="flex items-center justify-between text-white font-medium">
             <span className="flex items-center gap-1.5 text-[#00B4DB] font-bold">
               <Clock size={14} /> Clear Time:
@@ -86,16 +136,16 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             <span>+{timeBonus} PTS</span>
           </div>
 
-          <div className="h-px bg-white/20 my-1.5" />
+          <div className="h-px bg-white/20 my-1" />
 
-          <div className="flex items-center justify-between font-black text-sm text-[#FFD700] pt-1 italic tracking-tight">
+          <div className="flex items-center justify-between font-black text-sm text-[#FFD700] pt-0.5 italic tracking-tight">
             <span>TOTAL SCORE:</span>
             <span>{score} PTS</span>
           </div>
         </div>
 
         {/* ACTION BUTTONS */}
-        <div className="flex flex-col gap-2.5 pt-2">
+        <div className="flex flex-col gap-2 pt-1">
           {hasNextLevel ? (
             <button
               onClick={() => {
@@ -116,13 +166,13 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
           <div className="grid grid-cols-2 gap-2.5">
             <button
               onClick={onReplay}
-              className="py-3 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] flex items-center justify-center gap-1.5 uppercase transition-all"
+              className="py-2.5 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] flex items-center justify-center gap-1.5 uppercase transition-all"
             >
               <RotateCcw size={14} className="text-[#00FFD1]" /> REPLAY
             </button>
             <button
               onClick={onMenu}
-              className="py-3 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] flex items-center justify-center gap-1.5 uppercase transition-all"
+              className="py-2.5 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-3 border-white shadow-[3px_3px_0_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#000] flex items-center justify-center gap-1.5 uppercase transition-all"
             >
               <Home size={14} className="text-[#FFD700]" /> MAIN MENU
             </button>

@@ -13,8 +13,11 @@ import {
   drawTile,
 } from '../graphics/pixelSprites';
 import {
+  DifficultyMode,
+  DIFFICULTY_CONFIGS,
   Enemy,
   FloatingText,
+  HandheldSkin,
   HeroClassType,
   InteractiveObject,
   Item,
@@ -23,6 +26,7 @@ import {
   Particle,
   PlayerState,
   Projectile,
+  SKIN_CONFIGS,
 } from '../types';
 import { checkAABB, resolveTileCollisions } from './physics';
 
@@ -49,11 +53,14 @@ export class GameEngine {
 
   public callbacks: GameEngineCallbacks;
   public heroType: HeroClassType = 'knight';
+  public difficulty: DifficultyMode = 'normal';
+  public skin: HandheldSkin = 'vibrant';
   public lastCheckpoint: { x: number; y: number } = { x: 0, y: 0 };
   public levelTime: number = 0;
   public isPaused: boolean = false;
   public isGameOver: boolean = false;
   public isCompleted: boolean = false;
+  private isOnIce: boolean = false;
 
   // Screen shake & camera
   public camera = { x: 0, y: 0, targetX: 0, targetY: 0 };
@@ -72,20 +79,44 @@ export class GameEngine {
 
   private animationFrameId: number | null = null;
   private lastTimestamp: number = 0;
+  private pendingTimeouts: number[] = [];
+
+  private addTimeout(fn: () => void, ms: number) {
+    const id = window.setTimeout(() => {
+      this.pendingTimeouts = this.pendingTimeouts.filter((t) => t !== id);
+      fn();
+    }, ms);
+    this.pendingTimeouts.push(id);
+    return id;
+  }
+
+  public clearAllTimeouts() {
+    this.pendingTimeouts.forEach((id) => clearTimeout(id));
+    this.pendingTimeouts = [];
+  }
 
   constructor(
     canvas: HTMLCanvasElement,
     level: LevelData,
     heroType: HeroClassType,
+    difficulty: DifficultyMode = 'normal',
+    skin: HandheldSkin = 'vibrant',
     callbacks: GameEngineCallbacks
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.level = level;
     this.heroType = heroType;
+    this.difficulty = difficulty;
+    this.skin = skin;
     this.callbacks = callbacks;
 
     const heroConfig = HERO_CLASSES[heroType] || HERO_CLASSES.knight;
+    const diffConfig = DIFFICULTY_CONFIGS[difficulty] || DIFFICULTY_CONFIGS.normal;
+    const skinConfig = SKIN_CONFIGS[skin] || SKIN_CONFIGS.vibrant;
+    const skinHpBonus = skinConfig.capability.healthBonus || 0;
+
+    const calculatedMaxHp = Math.max(2, heroConfig.maxHealth + diffConfig.healthBonus + skinHpBonus);
 
     this.player = {
       x: level.spawnPoint.x * level.tileSize,
@@ -94,8 +125,8 @@ export class GameEngine {
       vy: 0,
       width: 14,
       height: 22,
-      health: heroConfig.maxHealth,
-      maxHealth: heroConfig.maxHealth,
+      health: calculatedMaxHp,
+      maxHealth: calculatedMaxHp,
       isGrounded: false,
       isOnWall: false,
       wallDir: 0,
@@ -359,6 +390,7 @@ export class GameEngine {
   }
 
   public stop() {
+    this.clearAllTimeouts();
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
@@ -367,15 +399,127 @@ export class GameEngine {
   }
 
   public resetToCheckpoint() {
+    this.clearAllTimeouts();
     this.player.x = this.lastCheckpoint.x * this.level.tileSize;
     this.player.y = this.lastCheckpoint.y * this.level.tileSize;
     this.player.vx = 0;
     this.player.vy = 0;
-    const heroConfig = HERO_CLASSES[this.heroType];
-    this.player.health = heroConfig.maxHealth;
+    this.player.health = this.player.maxHealth;
     this.player.invulnerableTimer = 1.5;
+    this.player.isAttacking = false;
+    this.player.isDashing = false;
+    this.player.animState = 'idle';
     this.isGameOver = false;
+    this.isPaused = false;
+    this.screenShake = { intensity: 0, timer: 0 };
+    this.projectiles = [];
+    this.particles = [];
+    this.floatingTexts = [];
+    this.keys = {
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      attack: false,
+      special: false,
+      jumpPressed: false,
+    };
+
+    // Snap camera immediately to checkpoint
+    const viewW = this.canvas.width;
+    const viewH = this.canvas.height;
+    const targetX = Math.max(0, Math.min(this.level.width * this.level.tileSize - viewW, this.player.x + this.player.width / 2 - viewW / 2));
+    const targetY = Math.max(0, Math.min(this.level.height * this.level.tileSize - viewH, this.player.y + this.player.height / 2 - viewH / 2));
+    this.camera.x = targetX;
+    this.camera.y = targetY;
+    this.camera.targetX = targetX;
+    this.camera.targetY = targetY;
+
     this.callbacks.onPlayerHurt(this.player.health, this.player.maxHealth);
+    soundManager.playBGM(this.level.bgMusicTheme);
+  }
+
+  public restartStage() {
+    this.clearAllTimeouts();
+    this.isPaused = false;
+    this.isGameOver = false;
+    this.isCompleted = false;
+    this.levelTime = 0;
+    this.screenShake = { intensity: 0, timer: 0 };
+    this.isOnIce = false;
+
+    // Reset control keys
+    this.keys = {
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      attack: false,
+      special: false,
+      jumpPressed: false,
+    };
+
+    const heroConfig = HERO_CLASSES[this.heroType] || HERO_CLASSES.knight;
+    const diffConfig = DIFFICULTY_CONFIGS[this.difficulty] || DIFFICULTY_CONFIGS.normal;
+    const skinConfig = SKIN_CONFIGS[this.skin] || SKIN_CONFIGS.vibrant;
+    const skinHpBonus = skinConfig.capability.healthBonus || 0;
+    const calculatedMaxHp = Math.max(2, heroConfig.maxHealth + diffConfig.healthBonus + skinHpBonus);
+
+    this.player.x = this.level.spawnPoint.x * this.level.tileSize;
+    this.player.y = this.level.spawnPoint.y * this.level.tileSize;
+    this.player.vx = 0;
+    this.player.vy = 0;
+    this.player.health = calculatedMaxHp;
+    this.player.maxHealth = calculatedMaxHp;
+    this.player.invulnerableTimer = 1.2;
+    this.player.isAttacking = false;
+    this.player.attackTimer = 0;
+    this.player.attackCooldown = 0;
+    this.player.specialCooldownTimer = 0;
+    this.player.isDashing = false;
+    this.player.dashTimer = 0;
+    this.player.isGrounded = false;
+    this.player.isOnWall = false;
+    this.player.wallDir = 0;
+    this.player.isWallSliding = false;
+    this.player.facing = 'right';
+    this.player.score = 0;
+    this.player.coins = 0;
+    this.player.keys = 0;
+    this.player.mana = 100;
+    this.player.maxMana = 100;
+    this.player.animState = 'idle';
+    this.player.animFrame = 0;
+    this.player.animTimer = 0;
+
+    this.lastCheckpoint = { ...this.level.spawnPoint };
+
+    // Clear active projectiles, particles, and floating texts
+    this.projectiles = [];
+    this.particles = [];
+    this.floatingTexts = [];
+
+    // Reload all original coins, gems, enemies, bosses, and doors
+    this.loadLevelEntities();
+
+    // Snap camera immediately to spawn point so view does not lag or show empty void
+    const viewW = this.canvas.width;
+    const viewH = this.canvas.height;
+    const targetX = Math.max(0, Math.min(this.level.width * this.level.tileSize - viewW, this.player.x + this.player.width / 2 - viewW / 2));
+    const targetY = Math.max(0, Math.min(this.level.height * this.level.tileSize - viewH, this.player.y + this.player.height / 2 - viewH / 2));
+    this.camera.x = targetX;
+    this.camera.y = targetY;
+    this.camera.targetX = targetX;
+    this.camera.targetY = targetY;
+
+    this.callbacks.onPlayerHurt(this.player.health, this.player.maxHealth);
+    this.callbacks.onScoreUpdate(0, 0, 0);
+
+    if (this.callbacks.onBossHealthUpdate) {
+      this.callbacks.onBossHealthUpdate(0, 0, '');
+    }
+
+    soundManager.playBGM(this.level.bgMusicTheme);
   }
 
   // ----------------------------------------------------
@@ -424,9 +568,9 @@ export class GameEngine {
         p.isDashing = false;
       }
     } else {
-      // Horizontal input
-      const accel = p.isGrounded ? 0.4 : 0.25;
-      const friction = p.isGrounded ? 0.78 : 0.92;
+      // Horizontal input with ice friction support
+      const accel = this.isOnIce ? (p.isGrounded ? 0.18 : 0.14) : (p.isGrounded ? 0.4 : 0.25);
+      const friction = this.isOnIce ? 0.985 : (p.isGrounded ? 0.78 : 0.92);
 
       if (this.keys.left) {
         p.vx -= accel;
@@ -439,8 +583,30 @@ export class GameEngine {
         if (Math.abs(p.vx) < 0.05) p.vx = 0;
       }
 
-      // Clamp horizontal speed
-      p.vx = Math.max(-heroConfig.speed, Math.min(heroConfig.speed, p.vx));
+      // Clamp horizontal speed with skin speed bonus
+      const skinConfig = SKIN_CONFIGS[this.skin] || SKIN_CONFIGS.vibrant;
+      const effectiveMaxSpeed = heroConfig.speed * (1 + (skinConfig.capability.speedBonus || 0));
+      p.vx = Math.max(-effectiveMaxSpeed, Math.min(effectiveMaxSpeed, p.vx));
+
+      // Skin-specific trail particles when moving fast
+      if (Math.abs(p.vx) > 1.4 && Math.random() < 0.3) {
+        let trailColor = '#00FFD1';
+        if (this.skin === 'dmg_gameboy') trailColor = '#991b5b';
+        else if (this.skin === 'nes_classic') trailColor = '#ef4444';
+        else if (this.skin === 'snes') trailColor = '#a855f7';
+        else if (this.skin === 'switch_neon') trailColor = Math.random() < 0.5 ? '#00c3e3' : '#ff3b56';
+
+        this.particles.push({
+          x: p.x + p.width / 2 + (Math.random() - 0.5) * 4,
+          y: p.y + p.height - 2,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: -Math.random() * 0.8,
+          size: 2,
+          color: trailColor,
+          life: 0.25,
+          maxLife: 0.25,
+        });
+      }
 
       // Gravity
       const gravity = 0.32;
@@ -540,13 +706,15 @@ export class GameEngine {
     if (col.isGrounded) {
       if (!p.isGrounded) {
         // Landing dust
-        this.createDustParticle(p.x + p.width / 2, p.y + p.height, '#64748b', 4);
+        this.createDustParticle(p.x + p.width / 2, p.y + p.height, this.isOnIce ? '#38bdf8' : '#64748b', 4);
       }
       p.isGrounded = true;
+      this.isOnIce = col.isOnIce;
       p.coyoteTimer = 0.1;
       p.canDoubleJump = heroConfig.doubleJump;
     } else {
       p.isGrounded = false;
+      this.isOnIce = false;
     }
 
     // Wall slide detection
@@ -585,7 +753,13 @@ export class GameEngine {
 
     // Out of bounds check
     if (p.y > this.level.height * this.level.tileSize + 30) {
-      this.hurtPlayer(p.maxHealth, 'Fell into the abyss!');
+      const diffConfig = DIFFICULTY_CONFIGS[this.difficulty] || DIFFICULTY_CONFIGS.normal;
+      if (diffConfig.damageTakenMultiplier === 0) {
+        this.resetToCheckpoint();
+        this.addFloatingText('SAVED!', p.x, p.y - 12, '#38bdf8');
+      } else {
+        this.hurtPlayer(p.maxHealth, 'Fell into the abyss!');
+      }
     }
   }
 
@@ -630,7 +804,9 @@ export class GameEngine {
   private triggerSpecialAbility() {
     const p = this.player;
     const heroConfig = HERO_CLASSES[this.heroType];
-    p.specialCooldownTimer = heroConfig.specialCooldown;
+    const skinConfig = SKIN_CONFIGS[this.skin] || SKIN_CONFIGS.vibrant;
+    const cdMult = 1 - (skinConfig.capability.cooldownReduction || 0);
+    p.specialCooldownTimer = heroConfig.specialCooldown * cdMult;
 
     if (this.heroType === 'knight') {
       // Ground Slam / Shield Charge
@@ -643,10 +819,11 @@ export class GameEngine {
     } else if (this.heroType === 'rogue') {
       // Shadow Dash
       p.isDashing = true;
-      p.dashTimer = 0.22;
-      p.invulnerableTimer = 0.25;
+      const dashMult = skinConfig.capability.dashDistanceMultiplier || 1.0;
+      p.dashTimer = 0.22 * dashMult;
+      p.invulnerableTimer = 0.25 * dashMult;
       soundManager.playDash();
-      this.addFloatingText('SHADOW DASH!', p.x, p.y - 12, '#2dd4bf');
+      this.addFloatingText(dashMult > 1.1 ? 'HYPER DASH!' : 'SHADOW DASH!', p.x, p.y - 12, '#2dd4bf');
     } else if (this.heroType === 'wizard') {
       // Arcane Fireball
       soundManager.playFireball();
@@ -674,6 +851,8 @@ export class GameEngine {
   // ----------------------------------------------------
   private updateEnemies(dt: number) {
     const p = this.player;
+    const diffConfig = DIFFICULTY_CONFIGS[this.difficulty] || DIFFICULTY_CONFIGS.normal;
+    const speedMult = diffConfig.enemySpeedMultiplier;
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
@@ -686,21 +865,21 @@ export class GameEngine {
 
       if (e.type === 'slime') {
         // Patrol & hop
-        e.x += e.vx;
+        e.x += e.vx * speedMult;
         if (Math.abs(e.x - e.startX) > e.patrolRange) {
           e.vx = -e.vx;
           e.facing = e.vx > 0 ? 'right' : 'left';
         }
       } else if (e.type === 'skeleton') {
         // March & thrust
-        e.x += e.vx;
+        e.x += e.vx * speedMult;
         if (Math.abs(e.x - e.startX) > e.patrolRange) {
           e.vx = -e.vx;
           e.facing = e.vx > 0 ? 'right' : 'left';
         }
       } else if (e.type === 'bat') {
         // Sinusoidal flight
-        e.x += e.vx;
+        e.x += e.vx * speedMult;
         e.y += Math.sin(this.levelTime * 4 + parseInt(e.id.slice(-1) || '0')) * 0.8;
         if (Math.abs(e.x - e.startX) > e.patrolRange) {
           e.vx = -e.vx;
@@ -711,14 +890,14 @@ export class GameEngine {
         if (e.attackCooldown !== undefined) {
           e.attackCooldown -= dt;
           if (e.attackCooldown <= 0) {
-            e.attackCooldown = 2.5;
+            e.attackCooldown = Math.max(1.4, 2.5 / speedMult);
             const dir = p.x > e.x ? 1 : -1;
             e.facing = dir === 1 ? 'right' : 'left';
             this.projectiles.push({
               id: `bomb_${Date.now()}`,
               x: e.x + (dir === 1 ? e.w : -8),
               y: e.y + 4,
-              vx: dir * 3.0,
+              vx: dir * 3.0 * speedMult,
               vy: -3.5,
               radius: 5,
               color: '#ef4444',
@@ -751,9 +930,25 @@ export class GameEngine {
           // Stomp success!
           p.vy = -7.5; // Bounce player up
           soundManager.playStomp();
-          this.damageEnemy(e, 2);
+          const skinConfig = SKIN_CONFIGS[this.skin] || SKIN_CONFIGS.vibrant;
+          const stompDmg = 2 + (skinConfig.capability.stompDamageBonus || 0);
+          this.damageEnemy(e, stompDmg);
           this.createDustParticle(e.x + e.w / 2, e.y, '#f59e0b', 8);
-          this.addFloatingText('STOMP! 200', e.x, e.y - 10, '#fde047');
+
+          // NES Classic: Pixel Stomp Quake shockwave!
+          if (skinConfig.id === 'nes_classic') {
+            this.triggerScreenShake(4, 0.2);
+            this.addFloatingText('QUAKE STOMP!', e.x, e.y - 12, '#ef4444');
+            // Deal shockwave damage to nearby enemies within 54px
+            this.enemies.forEach((other) => {
+              if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 54) {
+                this.damageEnemy(other, 1);
+                this.createDustParticle(other.x + other.w / 2, other.y, '#ef4444', 4);
+              }
+            });
+          } else {
+            this.addFloatingText(`STOMP! ${stompDmg * 100}`, e.x, e.y - 10, '#fde047');
+          }
         } else if (p.invulnerableTimer <= 0 && !p.isDashing) {
           // Player takes damage
           this.hurtPlayer(1, 'Hit by ' + e.type);
@@ -848,7 +1043,7 @@ export class GameEngine {
 
       if (enemy.isBoss) {
         this.addFloatingText('BOSS SLAIN!', enemy.x, enemy.y - 24, '#22c55e');
-        setTimeout(() => {
+        this.addTimeout(() => {
           this.completeLevel();
         }, 1500);
       }
@@ -859,14 +1054,23 @@ export class GameEngine {
     const p = this.player;
     if (p.invulnerableTimer > 0 || this.isGameOver || this.isCompleted) return;
 
-    p.health -= damage;
+    const diffConfig = DIFFICULTY_CONFIGS[this.difficulty] || DIFFICULTY_CONFIGS.normal;
+    if (diffConfig.damageTakenMultiplier === 0) {
+      p.invulnerableTimer = 0.6;
+      this.addFloatingText('IMMORTAL', p.x, p.y - 10, '#38bdf8');
+      return;
+    }
+
+    const finalDamage = Math.max(1, Math.round(damage * diffConfig.damageTakenMultiplier));
+
+    p.health -= finalDamage;
     p.invulnerableTimer = 1.2;
     p.vy = -4.0;
     p.vx = p.facing === 'right' ? -2.5 : 2.5;
 
     soundManager.playPlayerHurt();
     this.triggerScreenShake(5, 0.25);
-    this.addFloatingText(`-${damage} HP`, p.x, p.y - 10, '#ef4444');
+    this.addFloatingText(`-${finalDamage} HP`, p.x, p.y - 10, '#ef4444');
     this.callbacks.onPlayerHurt(p.health, p.maxHealth);
 
     if (p.health <= 0) {
@@ -878,7 +1082,7 @@ export class GameEngine {
     this.isGameOver = true;
     soundManager.playExplosion();
     this.addFloatingText('GAME OVER', this.player.x, this.player.y - 16, '#ef4444');
-    setTimeout(() => {
+    this.addTimeout(() => {
       this.callbacks.onGameOver();
     }, 1200);
   }
@@ -889,8 +1093,11 @@ export class GameEngine {
     soundManager.playVictory();
     this.addFloatingText('STAGE CLEAR!', this.player.x, this.player.y - 20, '#22c55e');
 
-    const finalScore = this.player.score + Math.max(0, Math.floor((this.level.targetTime - this.levelTime) * 50));
-    setTimeout(() => {
+    const diffConfig = DIFFICULTY_CONFIGS[this.difficulty] || DIFFICULTY_CONFIGS.normal;
+    const baseScore = this.player.score + Math.max(0, Math.floor((this.level.targetTime - this.levelTime) * 50));
+    const finalScore = Math.round(baseScore * diffConfig.scoreMultiplier);
+
+    this.addTimeout(() => {
       this.callbacks.onLevelComplete(this.levelTime, finalScore, this.player.coins);
     }, 1500);
   }
@@ -969,6 +1176,9 @@ export class GameEngine {
 
   private updateItemsAndObjects(dt: number) {
     const p = this.player;
+    const skinConfig = SKIN_CONFIGS[this.skin] || SKIN_CONFIGS.vibrant;
+    const magnetRadius = skinConfig.capability.magnetRadius || 0;
+    const crystalMultiplier = skinConfig.capability.crystalValueMultiplier || 1.0;
 
     // Collectibles
     for (let i = 0; i < this.items.length; i++) {
@@ -976,18 +1186,31 @@ export class GameEngine {
       if (item.collected) continue;
       item.animTimer += dt;
 
+      // GameBoy DMG-01: Coin & Gem Magnet Capability
+      if (magnetRadius > 0 && (item.type === 'coin' || item.type === 'gem')) {
+        const dx = p.x + p.width / 2 - (item.x + item.w / 2);
+        const dy = p.y + p.height / 2 - (item.y + item.h / 2);
+        const dist = Math.hypot(dx, dy);
+        if (dist < magnetRadius && dist > 1) {
+          item.x += (dx / dist) * 2.8;
+          item.y += (dy / dist) * 2.8;
+        }
+      }
+
       if (checkAABB({ x: p.x, y: p.y, w: p.width, h: p.height }, item)) {
         item.collected = true;
         if (item.type === 'coin') {
           p.coins += 1;
-          p.score += item.value;
+          const scoreGain = Math.round(item.value * crystalMultiplier);
+          p.score += scoreGain;
           soundManager.playCoin();
-          this.addFloatingText('+100', item.x, item.y - 8, '#fde047');
+          this.addFloatingText(`+${scoreGain}`, item.x, item.y - 8, '#fde047');
         } else if (item.type === 'gem') {
           p.coins += 5;
-          p.score += item.value;
+          const scoreGain = Math.round(item.value * crystalMultiplier);
+          p.score += scoreGain;
           soundManager.playGem();
-          this.addFloatingText('+500 GEM!', item.x, item.y - 8, '#67e8f9');
+          this.addFloatingText(`+${scoreGain} GEM!`, item.x, item.y - 8, '#67e8f9');
         } else if (item.type === 'heart') {
           p.health = Math.min(p.maxHealth, p.health + 1);
           soundManager.playGem();
@@ -1288,6 +1511,45 @@ export class GameEngine {
         const ex = ((i * 57 + emberT * 20) % w);
         const ey = h - ((i * 33 + emberT * 40) % (h * 0.7));
         ctx.fillRect(ex, ey, 2, 2);
+      }
+    } else if (biome === 'frost') {
+      // Frostpeak Arctic Twilight with starry skies & falling snow
+      ctx.fillStyle = '#030712';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, h * 0.4, w, h * 0.6);
+
+      // Distant Glacier Peaks
+      const mOffsetX = (this.camera.x * 0.12) % 100;
+      ctx.fillStyle = '#1e293b';
+      for (let i = -1; i < w / 100 + 2; i++) {
+        const mx = i * 100 - mOffsetX;
+        ctx.beginPath();
+        ctx.moveTo(mx, h);
+        ctx.lineTo(mx + 50, h - 90);
+        ctx.lineTo(mx + 100, h);
+        ctx.fill();
+      }
+
+      // Aurora Borealis Ribbon
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(0, 30);
+      for (let x = 0; x <= w; x += 30) {
+        ctx.lineTo(x, 25 + Math.sin((x + Date.now() / 200) / 40) * 12);
+      }
+      ctx.lineTo(w, 55);
+      ctx.lineTo(0, 55);
+      ctx.closePath();
+      ctx.fill();
+
+      // Falling Snow Particles
+      ctx.fillStyle = '#ffffff';
+      const snowT = Date.now() / 300;
+      for (let i = 0; i < 16; i++) {
+        const sx = ((i * 37 + snowT * 15) % w);
+        const sy = ((i * 29 + snowT * 35) % h);
+        ctx.fillRect(sx, sy, 2, 2);
       }
     } else {
       // Cyber Matrix Grid

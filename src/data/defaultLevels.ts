@@ -398,9 +398,88 @@ function buildLevel4(): LevelData {
 }
 
 // ----------------------------------------------------
-// LEVEL 5: CLOCKWORK CITADEL (WORLD 3 - BOSS FIGHT)
+// LEVEL 5: FROSTPEAK SUMMIT (WORLD 3, STAGE 1)
 // ----------------------------------------------------
 function buildLevel5(): LevelData {
+  const w = 75;
+  const h = 20;
+  const tiles = createBlankGrid(w, h);
+
+  // Snowy/Icy Ground with chasms
+  for (let x = 0; x < w; x++) {
+    if ((x >= 16 && x <= 19) || (x >= 38 && x <= 42) || (x >= 58 && x <= 61)) {
+      tiles[h - 1][x] = 'spike_up';
+    } else {
+      tiles[h - 2][x] = (x % 3 === 0) ? 'ice' : 'solid';
+      tiles[h - 1][x] = 'solid';
+    }
+  }
+
+  // Left & right walls
+  for (let y = 0; y < h; y++) {
+    tiles[y][0] = 'solid';
+    tiles[y][w - 1] = 'solid';
+  }
+
+  // Floating Ice Platforms & Peaks
+  for (let x = 7; x <= 12; x++) tiles[14][x] = 'ice';
+  tiles[13][9] = 'coin';
+  tiles[13][10] = 'gem';
+
+  // Gap 1 Spring Leap
+  tiles[17][15] = 'spring';
+
+  // Upper Ice Cliff
+  for (let x = 21; x <= 30; x++) tiles[11][x] = 'ice';
+  tiles[10][23] = 'enemy_bat';
+  tiles[10][27] = 'enemy_skeleton';
+  tiles[9][25] = 'coin';
+
+  // Checkpoint 1
+  tiles[10][31] = 'checkpoint';
+
+  // Chasm 2 Floating One-ways
+  for (let x = 33; x <= 36; x++) tiles[13][x] = 'solid_top';
+  for (let x = 44; x <= 49; x++) tiles[12][x] = 'solid_top';
+  tiles[11][46] = 'heart';
+  tiles[10][47] = 'enemy_bat';
+
+  // High Summit Towers
+  for (let x = 51; x <= 56; x++) tiles[8][x] = 'ice';
+  tiles[7][53] = 'key';
+  tiles[7][54] = 'gem';
+
+  // Locked Gate to Exit
+  for (let y = 12; y <= 17; y++) tiles[y][64] = 'solid';
+  tiles[16][64] = 'door';
+
+  // Final stretch
+  tiles[17][68] = 'coin';
+  tiles[17][69] = 'coin';
+  tiles[17][70] = 'gem';
+  tiles[17][72] = 'exit';
+
+  return {
+    id: 'w3_s1',
+    name: 'Frostpeak Summit',
+    worldIndex: 3,
+    stageIndex: 1,
+    biome: 'frost',
+    width: w,
+    height: h,
+    tileSize: 16,
+    tiles,
+    spawnPoint: { x: 3, y: 17 },
+    targetTime: 50,
+    parScore: 3200,
+    bgMusicTheme: 'cave',
+  };
+}
+
+// ----------------------------------------------------
+// LEVEL 6: CLOCKWORK CITADEL (WORLD 3, STAGE 2 - BOSS FIGHT)
+// ----------------------------------------------------
+function buildLevel6(): LevelData {
   const w = 50;
   const h = 20;
   const tiles = createBlankGrid(w, h);
@@ -435,10 +514,10 @@ function buildLevel5(): LevelData {
   tiles[13][28] = 'boss_titan';
 
   return {
-    id: 'w3_s1',
+    id: 'w3_s2',
     name: 'Clockwork Citadel: The Titan',
     worldIndex: 3,
-    stageIndex: 1,
+    stageIndex: 2,
     biome: 'cyber',
     width: w,
     height: h,
@@ -451,10 +530,152 @@ function buildLevel5(): LevelData {
   };
 }
 
+// ----------------------------------------------------
+// LEVEL 7: NEON UNDERWORLD (WORLD 4, STAGE 1)
+// ----------------------------------------------------
+function buildLevel7(): LevelData {
+  const w = 80;
+  const h = 22;
+  const tiles = createBlankGrid(w, h);
+
+  // Floor with hazardous energy grid pits
+  for (let x = 0; x < w; x++) {
+    if ((x >= 12 && x <= 15) || (x >= 32 && x <= 36) || (x >= 54 && x <= 58)) {
+      tiles[h - 1][x] = 'spike_up';
+    } else {
+      tiles[h - 2][x] = 'solid';
+      tiles[h - 1][x] = 'solid';
+    }
+  }
+
+  // Outer bounds
+  for (let y = 0; y < h; y++) {
+    tiles[y][0] = 'solid';
+    tiles[y][w - 1] = 'solid';
+  }
+
+  // Segment 1: Cyber platforms & goblin grenadiers
+  for (let x = 6; x <= 10; x++) tiles[16][x] = 'solid_top';
+  tiles[15][8] = 'enemy_goblin';
+  tiles[14][9] = 'coin';
+
+  for (let x = 17; x <= 24; x++) tiles[14][x] = 'solid';
+  tiles[13][20] = 'gem';
+  tiles[13][22] = 'enemy_skeleton';
+
+  // Breakable secret vault
+  for (let y = 14; y <= 19; y++) tiles[y][26] = 'breakable';
+  tiles[17][27] = 'heart';
+  tiles[17][28] = 'gem';
+
+  // Checkpoint 1
+  tiles[19][30] = 'checkpoint';
+
+  // Segment 2: Vertical high-voltage towers
+  for (let x = 38; x <= 44; x++) tiles[12][x] = 'solid_top';
+  tiles[11][40] = 'enemy_goblin';
+  tiles[10][42] = 'coin';
+
+  for (let x = 46; x <= 52; x++) tiles[8][x] = 'solid_top';
+  tiles[7][48] = 'key';
+  tiles[7][50] = 'gem';
+
+  // Spring jump to cross giant chasm
+  tiles[19][53] = 'spring';
+
+  // Vault Door
+  for (let y = 14; y <= 19; y++) tiles[y][62] = 'solid';
+  tiles[18][62] = 'door';
+
+  // Final guard stretch
+  tiles[19][66] = 'enemy_slime';
+  tiles[19][70] = 'enemy_goblin';
+  tiles[19][74] = 'coin';
+  tiles[19][75] = 'coin';
+  tiles[19][77] = 'exit';
+
+  return {
+    id: 'w4_s1',
+    name: 'Neon Cyber Abyss',
+    worldIndex: 4,
+    stageIndex: 1,
+    biome: 'cyber',
+    width: w,
+    height: h,
+    tileSize: 16,
+    tiles,
+    spawnPoint: { x: 3, y: 19 },
+    targetTime: 55,
+    parScore: 4000,
+    bgMusicTheme: 'cyber',
+  };
+}
+
+// ----------------------------------------------------
+// LEVEL 8: THE OVERLORD CORE (WORLD 4, STAGE 2 - GRAND FINALE)
+// ----------------------------------------------------
+function buildLevel8(): LevelData {
+  const w = 55;
+  const h = 22;
+  const tiles = createBlankGrid(w, h);
+
+  // Core Reactor Chamber
+  for (let x = 0; x < w; x++) {
+    tiles[0][x] = 'solid';
+    tiles[h - 2][x] = 'solid';
+    tiles[h - 1][x] = 'solid';
+  }
+
+  // Left & right walls
+  for (let y = 0; y < h; y++) {
+    tiles[y][0] = 'solid';
+    tiles[y][w - 1] = 'solid';
+  }
+
+  // Symmetrical Combat Tiers
+  for (let x = 6; x <= 15; x++) tiles[15][x] = 'solid_top';
+  for (let x = 39; x <= 48; x++) tiles[15][x] = 'solid_top';
+  for (let x = 16; x <= 38; x++) tiles[10][x] = 'solid_top';
+
+  // Lower speed bounce springs
+  tiles[19][4] = 'spring';
+  tiles[19][50] = 'spring';
+
+  // Support heart capsules
+  tiles[9][18] = 'heart';
+  tiles[9][36] = 'heart';
+
+  // Minion Goblin guards on upper flanks
+  tiles[14][10] = 'enemy_goblin';
+  tiles[14][43] = 'enemy_goblin';
+
+  // The Supreme Boss Titan Core
+  tiles[14][27] = 'boss_titan';
+
+  return {
+    id: 'w4_s2',
+    name: 'The Overlord Core',
+    worldIndex: 4,
+    stageIndex: 2,
+    biome: 'cyber',
+    width: w,
+    height: h,
+    tileSize: 16,
+    tiles,
+    spawnPoint: { x: 4, y: 18 },
+    targetTime: 75,
+    parScore: 7500,
+    bgMusicTheme: 'boss',
+  };
+}
+
 export const CAMPAIGN_LEVELS: LevelData[] = [
   buildLevel1(),
   buildLevel2(),
   buildLevel3(),
   buildLevel4(),
   buildLevel5(),
+  buildLevel6(),
+  buildLevel7(),
+  buildLevel8(),
 ];

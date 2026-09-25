@@ -3,22 +3,30 @@ import { Smartphone, RotateCw, Maximize2, X } from 'lucide-react';
 
 interface OrientationPromptProps {
   onDismiss?: () => void;
+  onSwitchOrientation?: () => void;
+  onSelectPortrait?: () => void;
 }
 
-export const OrientationPrompt: React.FC<OrientationPromptProps> = ({ onDismiss }) => {
+export const OrientationPrompt: React.FC<OrientationPromptProps> = ({
+  onDismiss,
+  onSwitchOrientation,
+  onSelectPortrait,
+}) => {
   const [isPortrait, setIsPortrait] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     const checkOrientation = () => {
-      const isMobileOrTouch =
-        'ontouchstart' in window ||
-        navigator.maxTouchPoints > 0 ||
-        /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi/i.test(ua);
+      const isDesktopPointer = window.matchMedia?.('(hover: hover) and (pointer: fine)')?.matches;
+
+      // Only mobile devices or tablets should see the orientation prompt
+      const isMobileDevice = isMobileUA || (!isDesktopPointer && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
 
       // Check if width is narrower than height on mobile / small screens
       const isNarrowPortrait = window.innerWidth < window.innerHeight && window.innerWidth < 850;
-      setIsPortrait(isMobileOrTouch && isNarrowPortrait);
+      setIsPortrait(isMobileDevice && isNarrowPortrait);
     };
 
     checkOrientation();
@@ -47,6 +55,7 @@ export const OrientationPrompt: React.FC<OrientationPromptProps> = ({ onDismiss 
           // Orientation lock might require user gesture or not be supported on all browsers
         }
       }
+      onSwitchOrientation?.();
     } catch (err) {
       console.warn('Fullscreen request error:', err);
     }
@@ -91,34 +100,38 @@ export const OrientationPrompt: React.FC<OrientationPromptProps> = ({ onDismiss 
 
         <div className="space-y-1.5">
           <span className="text-[10px] font-black uppercase text-[#FFD700] tracking-widest">
-            OPTIMAL DISPLAY MODE
+            ORIENT DISPLAY
           </span>
           <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase">
-            ROTATE TO LANDSCAPE
+            SWITCH ORIENTATION
           </h3>
           <p className="text-xs text-[#8E9299] font-mono leading-relaxed pt-1">
-            Pixel Quest is crafted for landscape mode on mobile devices for responsive dual-thumb controls and wide field of view.
+            Rotate to Landscape for full widescreen vision, or play in classic vertical Nintendo Game Boy handheld mode!
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2.5 w-full pt-1">
           <button
-            onClick={handleRequestFullscreen}
+            onClick={() => {
+              handleRequestFullscreen();
+              setDismissed(true);
+            }}
             className="w-full py-3.5 bg-[#FFD700] hover:bg-[#ffea00] text-black font-black text-xs rounded-xl shadow-[4px_4px_0_0_#B8860B] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#B8860B] transition-all flex items-center justify-center gap-2 border-3 border-black uppercase italic"
           >
             <Maximize2 size={16} className="stroke-[3]" />
-            <span>FULLSCREEN LANDSCAPE</span>
+            <span>SWITCH TO LANDSCAPE</span>
           </button>
 
           <button
             onClick={() => {
               setDismissed(true);
+              onSelectPortrait?.();
               onDismiss?.();
             }}
-            className="w-full py-2.5 bg-[#24243e] hover:bg-[#302b63] text-white font-black text-xs rounded-xl border-2 border-white/60 active:translate-x-0.5 active:translate-y-0.5 transition-all uppercase"
+            className="w-full py-2.5 bg-[#24243e] hover:bg-[#302b63] text-[#00FFD1] font-black text-xs rounded-xl border-2 border-white/60 active:translate-x-0.5 active:translate-y-0.5 transition-all uppercase"
           >
-            CONTINUE ANYWAY
+            PLAY IN GAME BOY MODE (PORTRAIT)
           </button>
         </div>
       </div>
