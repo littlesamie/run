@@ -82,6 +82,13 @@ export default function App() {
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>(() => {
+    const isTouchOrMobileDevice = typeof window !== 'undefined' && (
+      'ontouchstart' in window ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(navigator.userAgent || '') ||
+      window.innerWidth <= 1280
+    );
+
     const defaultSettings: GameSettings = {
       soundEnabled: true,
       musicEnabled: true,
@@ -94,7 +101,7 @@ export default function App() {
       screenShake: true,
       difficulty: 'normal',
       handheldSkin: 'vibrant',
-      mobileControlMode: 'handheld',
+      mobileControlMode: 'overlay',
       vibrationEnabled: true,
       forceOrientation: 'auto',
     };
@@ -106,7 +113,9 @@ export default function App() {
         return {
           ...defaultSettings,
           ...parsed,
-          showTouchControls: parsed.showTouchControls ?? true,
+          // Always ensure touch controls are enabled on mobile/tablet
+          showTouchControls: isTouchOrMobileDevice ? true : (parsed.showTouchControls ?? true),
+          mobileControlMode: parsed.mobileControlMode || 'overlay',
         };
       }
     } catch (e) {}

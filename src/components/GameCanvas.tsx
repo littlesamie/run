@@ -99,15 +99,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       // Mobile and tablet user agents (iPhone, iPad, Android tablets/phones, etc.)
       const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(ua);
       const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
-      const isSmallScreen = window.innerWidth <= 1024;
+      const isTabletOrMobileScreen = window.innerWidth <= 1280;
+      const isTouchOrMobile = isMobileUA || hasTouch || isTabletOrMobileScreen;
 
-      // Controls should show if:
-      // 1. settings.showTouchControls is explicitly true, OR
-      // 2. Mobile user agent, OR
-      // 3. Touch is supported, OR
-      // 4. Small screen viewport <= 1024px.
-      // Can be toggled anytime via the HUD Gamepad icon!
-      const shouldShowControls = settings.showTouchControls ?? (isMobileUA || hasTouch || isSmallScreen);
+      // On mobile, tablet, or touch screen: ALWAYS true!
+      // On desktop PC: true if settings.showTouchControls is true.
+      const shouldShowControls = isTouchOrMobile || !!settings.showTouchControls;
       setIsMobileOrTablet(shouldShowControls);
 
       setWindowWidth(window.innerWidth);
@@ -281,40 +278,104 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Keyboard handlers (PC Controls)
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyZ', 'KeyX', 'KeyC'].includes(e.code)) {
+      const code = e.code;
+      const k = e.key ? e.key.toLowerCase() : '';
+
+      if (
+        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyZ', 'KeyX', 'KeyC', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(code) ||
+        ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'spacebar', 'z', 'x', 'c', 'a', 'd', 'w', 's'].includes(k)
+      ) {
         e.preventDefault();
       }
 
       // Quick restart hotkey (R)
-      if (e.code === 'KeyR' && !e.repeat) {
+      if ((code === 'KeyR' || k === 'r') && !e.repeat) {
         handleRestartStage();
         return;
       }
 
-      if (e.code === 'ArrowLeft' || e.code === 'KeyA') engine.keys.left = true;
-      if (e.code === 'ArrowRight' || e.code === 'KeyD') engine.keys.right = true;
-      if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space' || e.code === 'KeyZ') {
-        engine.keys.up = true;
-        engine.keys.jumpPressed = true;
+      const activeEngine = engineRef.current || engine;
+      if (!activeEngine) return;
+
+      if (code === 'ArrowLeft' || code === 'KeyA' || k === 'arrowleft' || k === 'a') {
+        activeEngine.keys.left = true;
       }
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') engine.keys.down = true;
-      if (e.code === 'KeyX' || e.code === 'KeyJ') engine.keys.attack = true;
-      if (e.code === 'KeyC' || e.code === 'KeyK' || e.code === 'ShiftLeft') engine.keys.special = true;
-      if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (code === 'ArrowRight' || code === 'KeyD' || k === 'arrowright' || k === 'd') {
+        activeEngine.keys.right = true;
+      }
+      if (
+        code === 'ArrowUp' ||
+        code === 'KeyW' ||
+        code === 'Space' ||
+        code === 'KeyZ' ||
+        k === 'arrowup' ||
+        k === 'w' ||
+        k === ' ' ||
+        k === 'spacebar' ||
+        k === 'z'
+      ) {
+        activeEngine.keys.up = true;
+        activeEngine.keys.jumpPressed = true;
+      }
+      if (code === 'ArrowDown' || code === 'KeyS' || k === 'arrowdown' || k === 's') {
+        activeEngine.keys.down = true;
+      }
+      if (code === 'KeyX' || code === 'KeyJ' || k === 'x' || k === 'j') {
+        activeEngine.keys.attack = true;
+      }
+      if (
+        code === 'KeyC' ||
+        code === 'KeyK' ||
+        code === 'ShiftLeft' ||
+        code === 'ShiftRight' ||
+        k === 'c' ||
+        k === 'k' ||
+        k === 'shift'
+      ) {
+        activeEngine.keys.special = true;
+      }
+      if (code === 'Escape' || code === 'KeyP' || k === 'escape' || k === 'p') {
         setIsPaused((prev) => {
-          engine.isPaused = !prev;
+          activeEngine.isPaused = !prev;
           return !prev;
         });
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'ArrowLeft' || e.code === 'KeyA') engine.keys.left = false;
-      if (e.code === 'ArrowRight' || e.code === 'KeyD') engine.keys.right = false;
-      if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space' || e.code === 'KeyZ') engine.keys.up = false;
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') engine.keys.down = false;
-      if (e.code === 'KeyX' || e.code === 'KeyJ') engine.keys.attack = false;
-      if (e.code === 'KeyC' || e.code === 'KeyK' || e.code === 'ShiftLeft') engine.keys.special = false;
+      const code = e.code;
+      const k = e.key ? e.key.toLowerCase() : '';
+      const activeEngine = engineRef.current || engine;
+      if (!activeEngine) return;
+
+      if (code === 'ArrowLeft' || code === 'KeyA' || k === 'arrowleft' || k === 'a') activeEngine.keys.left = false;
+      if (code === 'ArrowRight' || code === 'KeyD' || k === 'arrowright' || k === 'd') activeEngine.keys.right = false;
+      if (
+        code === 'ArrowUp' ||
+        code === 'KeyW' ||
+        code === 'Space' ||
+        code === 'KeyZ' ||
+        k === 'arrowup' ||
+        k === 'w' ||
+        k === ' ' ||
+        k === 'spacebar' ||
+        k === 'z'
+      ) {
+        activeEngine.keys.up = false;
+      }
+      if (code === 'ArrowDown' || code === 'KeyS' || k === 'arrowdown' || k === 's') activeEngine.keys.down = false;
+      if (code === 'KeyX' || code === 'KeyJ' || k === 'x' || k === 'j') activeEngine.keys.attack = false;
+      if (
+        code === 'KeyC' ||
+        code === 'KeyK' ||
+        code === 'ShiftLeft' ||
+        code === 'ShiftRight' ||
+        k === 'c' ||
+        k === 'k' ||
+        k === 'shift'
+      ) {
+        activeEngine.keys.special = false;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -704,37 +765,34 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       </div>
 
       {/* ----------------------------------------------------
-          LANDSCAPE TRANSLUCENT CONTROLLER (ONLY on Phones & Tablets in Landscape)
-          Anchored to screen edges so hands rest comfortably!
+          TRANSPARENT ON-SCREEN TOUCH CONTROLS (Mobile & Tablet)
+          Frosted glass translucent D-Pad on left, ABXY diamond on right.
+          Completely see-through to the game canvas underneath!
           ---------------------------------------------------- */}
-      {isMobileOrTablet && effectiveIsLandscape && (
-        <NintendoController
-          engineRef={engineRef}
-          skin={settings.handheldSkin || 'vibrant'}
-          layout={settings.mobileControlMode === 'handheld' ? 'landscape_wings' : 'compact_overlay'}
-          isVirtualLandscape={needsVirtualLandscape}
-          onTogglePause={handleTogglePause}
-          onRestart={handleRestartStage}
-          onSelectHero={onSelectHero}
-          vibrationEnabled={settings.vibrationEnabled ?? true}
-        />
-      )}
-
-      {/* ----------------------------------------------------
-          PORTRAIT TRANSLUCENT CONTROLLER (ONLY on Phones & Tablets in Portrait)
-          Never rendered on PC!
-          ---------------------------------------------------- */}
-      {isPortraitHandheld && (
-        <NintendoController
-          engineRef={engineRef}
-          skin={settings.handheldSkin || 'vibrant'}
-          layout="portrait_console"
-          isVirtualLandscape={false}
-          onTogglePause={handleTogglePause}
-          onRestart={handleRestartStage}
-          onSelectHero={onSelectHero}
-          vibrationEnabled={settings.vibrationEnabled ?? true}
-        />
+      {isMobileOrTablet && (
+        isPortraitHandheld && settings.mobileControlMode === 'handheld' ? (
+          <NintendoController
+            engineRef={engineRef}
+            skin={settings.handheldSkin || 'vibrant'}
+            layout="portrait_console"
+            isVirtualLandscape={false}
+            onTogglePause={handleTogglePause}
+            onRestart={handleRestartStage}
+            onSelectHero={onSelectHero}
+            vibrationEnabled={settings.vibrationEnabled ?? true}
+          />
+        ) : (
+          <NintendoController
+            engineRef={engineRef}
+            skin={settings.handheldSkin || 'vibrant'}
+            layout={settings.mobileControlMode === 'handheld' ? 'landscape_wings' : 'compact_overlay'}
+            isVirtualLandscape={needsVirtualLandscape}
+            onTogglePause={handleTogglePause}
+            onRestart={handleRestartStage}
+            onSelectHero={onSelectHero}
+            vibrationEnabled={settings.vibrationEnabled ?? true}
+          />
+        )
       )}
 
       {/* ----------------------------------------------------

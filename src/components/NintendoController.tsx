@@ -81,39 +81,98 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
   // Poll physical Gamepad if connected
   useEffect(() => {
     let animId: number;
+    let hasGamepad = false;
+
+    const onConnect = () => { hasGamepad = true; };
+    const onDisconnect = () => { hasGamepad = false; };
+    window.addEventListener('gamepadconnected', onConnect);
+    window.addEventListener('gamepaddisconnected', onDisconnect);
+
+    // Track keys activated by gamepad so we only release what the gamepad pressed
+    const gpKeys = { left: false, right: false, up: false, down: false, attack: false, special: false };
 
     const pollGamepad = () => {
+      // Check if gamepad is present
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
       const gp = gamepads[0] || gamepads[1];
 
-      if (gp && engineRef.current) {
+      if (gp && gp.connected && engineRef.current) {
+        hasGamepad = true;
         const engine = engineRef.current;
         const axisX = gp.axes[0] || 0;
         const axisY = gp.axes[1] || 0;
-        const dpadLeft = gp.buttons[14]?.pressed;
-        const dpadRight = gp.buttons[15]?.pressed;
-        const dpadUp = gp.buttons[12]?.pressed;
-        const dpadDown = gp.buttons[13]?.pressed;
+        const dpadLeft = !!gp.buttons[14]?.pressed;
+        const dpadRight = !!gp.buttons[15]?.pressed;
+        const dpadUp = !!gp.buttons[12]?.pressed;
+        const dpadDown = !!gp.buttons[13]?.pressed;
 
-        engine.keys.left = axisX < -0.3 || dpadLeft;
-        engine.keys.right = axisX > 0.3 || dpadRight;
-        engine.keys.down = axisY > 0.3 || dpadDown;
+        const left = axisX < -0.3 || dpadLeft;
+        const right = axisX > 0.3 || dpadRight;
+        const down = axisY > 0.3 || dpadDown;
+        const btnA = !!(gp.buttons[0]?.pressed || gp.buttons[1]?.pressed);
+        const up = btnA || axisY < -0.3 || dpadUp;
+        const attack = !!(gp.buttons[2]?.pressed || gp.buttons[3]?.pressed);
+        const special = !!(gp.buttons[5]?.pressed || gp.buttons[7]?.pressed || gp.buttons[4]?.pressed);
 
-        const btnA = gp.buttons[0]?.pressed || gp.buttons[1]?.pressed;
-        if (btnA && !engine.keys.up) {
-          engine.keys.jumpPressed = true;
+        if (left) {
+          engine.keys.left = true;
+          gpKeys.left = true;
+        } else if (gpKeys.left) {
+          engine.keys.left = false;
+          gpKeys.left = false;
         }
-        engine.keys.up = btnA || axisY < -0.3 || dpadUp;
-        engine.keys.attack = gp.buttons[2]?.pressed || gp.buttons[3]?.pressed;
-        engine.keys.special =
-          gp.buttons[5]?.pressed || gp.buttons[7]?.pressed || gp.buttons[4]?.pressed;
+
+        if (right) {
+          engine.keys.right = true;
+          gpKeys.right = true;
+        } else if (gpKeys.right) {
+          engine.keys.right = false;
+          gpKeys.right = false;
+        }
+
+        if (down) {
+          engine.keys.down = true;
+          gpKeys.down = true;
+        } else if (gpKeys.down) {
+          engine.keys.down = false;
+          gpKeys.down = false;
+        }
+
+        if (up) {
+          if (!gpKeys.up) engine.keys.jumpPressed = true;
+          engine.keys.up = true;
+          gpKeys.up = true;
+        } else if (gpKeys.up) {
+          engine.keys.up = false;
+          gpKeys.up = false;
+        }
+
+        if (attack) {
+          engine.keys.attack = true;
+          gpKeys.attack = true;
+        } else if (gpKeys.attack) {
+          engine.keys.attack = false;
+          gpKeys.attack = false;
+        }
+
+        if (special) {
+          engine.keys.special = true;
+          gpKeys.special = true;
+        } else if (gpKeys.special) {
+          engine.keys.special = false;
+          gpKeys.special = false;
+        }
       }
 
       animId = requestAnimationFrame(pollGamepad);
     };
 
     animId = requestAnimationFrame(pollGamepad);
-    return () => cancelAnimationFrame(animId);
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('gamepadconnected', onConnect);
+      window.removeEventListener('gamepaddisconnected', onDisconnect);
+    };
   }, [engineRef]);
 
   // Set keyboard key states on engine
@@ -674,15 +733,57 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
   // ----------------------------------------------------
   return (
     <div
-      className="fixed bottom-3 left-0 right-0 z-40 pointer-events-none px-3 sm:px-8 flex items-end justify-between select-none"
+      className="fixed bottom-2 left-0 right-0 z-50 pointer-events-none px-2 sm:px-6 pb-2 flex items-end justify-between select-none"
       style={{ touchAction: 'none' }}
     >
-      <div className="pointer-events-auto bg-black/40 backdrop-blur-md p-1.5 rounded-3xl border border-white/20 shadow-xl">
-        {renderDpad()}
+      {/* LEFT POD: Translucent D-Pad + L-Dash & Quick Restart */}
+      <div className="pointer-events-auto flex flex-col items-center gap-1.5 bg-black/35 backdrop-blur-md p-2 rounded-3xl border border-white/25 shadow-2xl">
+        <div className="flex items-center gap-2 w-full justify-between px-1">
+          <button
+            onPointerDown={() => handleActionDown('dash')}
+            onPointerUp={() => handleActionUp('dash')}
+            className={`px-3 py-1 rounded-xl font-pixel text-[8px] font-black uppercase shadow-sm ${translucentStyles.shoulderBg}`}
+          >
+            L - DASH
+          </button>
+          <button
+            onPointerDown={() => {
+              triggerHaptic(25);
+              onRestart?.();
+            }}
+            className="px-2 py-1 bg-[#00FFD1]/20 hover:bg-[#00FFD1]/30 active:bg-[#00FFD1]/50 border border-[#00FFD1]/40 rounded-lg text-[8px] font-pixel text-[#00FFD1] active:translate-y-0.5"
+            title="Restart Stage"
+          >
+            RESTART
+          </button>
+        </div>
+
+        <div className="scale-95 sm:scale-100 origin-center">{renderDpad()}</div>
       </div>
 
-      <div className="pointer-events-auto bg-black/40 backdrop-blur-md p-1.5 rounded-3xl border border-white/20 shadow-xl">
-        {renderActionButtons()}
+      {/* RIGHT POD: Translucent ABXY Diamond + R-Boost & Pause */}
+      <div className="pointer-events-auto flex flex-col items-center gap-1.5 bg-black/35 backdrop-blur-md p-2 rounded-3xl border border-white/25 shadow-2xl">
+        <div className="flex items-center gap-2 w-full justify-between px-1">
+          <button
+            onPointerDown={() => {
+              triggerHaptic(25);
+              onTogglePause?.();
+            }}
+            className="px-2.5 py-1 bg-white/15 hover:bg-white/25 active:bg-white/40 border border-white/30 rounded-lg text-[8px] font-pixel text-[#FFD700] active:translate-y-0.5"
+            title="Pause / Resume"
+          >
+            PAUSE
+          </button>
+          <button
+            onPointerDown={() => handleActionDown('special')}
+            onPointerUp={() => handleActionUp('special')}
+            className={`px-3 py-1 rounded-xl font-pixel text-[8px] font-black uppercase shadow-sm ${translucentStyles.shoulderBg}`}
+          >
+            R - BOOST
+          </button>
+        </div>
+
+        <div className="scale-95 sm:scale-100 origin-center">{renderActionButtons()}</div>
       </div>
     </div>
   );

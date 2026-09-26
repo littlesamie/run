@@ -199,6 +199,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
 
+            {/* TOUCH CONTROLS STYLE */}
+            <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <span className="text-white flex items-center gap-2">
+                  <Gamepad2 size={15} className="text-[#00FFD1]" /> MOBILE & TABLET CONTROL STYLE
+                </span>
+                <span className="text-[9px] text-[#FFD700] uppercase font-pixel">
+                  {settings.mobileControlMode === 'handheld' ? 'HANDHELD' : 'TRANSPARENT OVERLAY'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    soundManager.playCoin();
+                    onUpdateSettings({ mobileControlMode: 'overlay' });
+                  }}
+                  className={`p-2 rounded-xl border-2 font-pixel text-[8.5px] uppercase transition-all ${
+                    (settings.mobileControlMode || 'overlay') === 'overlay'
+                      ? 'bg-[#00FFD1] text-black border-black font-black shadow-[2px_2px_0_0_#000]'
+                      : 'bg-[#1a1a2e] text-[#8E9299] border-white/30 hover:text-white'
+                  }`}
+                >
+                  TRANSPARENT OVERLAY
+                </button>
+                <button
+                  onClick={() => {
+                    soundManager.playCoin();
+                    onUpdateSettings({ mobileControlMode: 'handheld' });
+                  }}
+                  className={`p-2 rounded-xl border-2 font-pixel text-[8.5px] uppercase transition-all ${
+                    settings.mobileControlMode === 'handheld'
+                      ? 'bg-[#FFD700] text-black border-black font-black shadow-[2px_2px_0_0_#000]'
+                      : 'bg-[#1a1a2e] text-[#8E9299] border-white/30 hover:text-white'
+                  }`}
+                >
+                  HANDHELD CONSOLE
+                </button>
+              </div>
+            </div>
+
             {/* ON-SCREEN TOUCH CONTROLS ON PC TOGGLE */}
             <div className="flex items-center justify-between pt-2 border-t border-white/10">
               <div className="space-y-0.5">
