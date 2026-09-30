@@ -82,12 +82,21 @@ export default function App() {
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>(() => {
-    const isTouchOrMobileDevice = typeof window !== 'undefined' && (
-      'ontouchstart' in window ||
-      (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(navigator.userAgent || '') ||
-      window.innerWidth <= 1280
-    );
+    // Check if device is an actual mobile phone or tablet vs laptop / desktop PC
+    const checkIsMobileOrTabletDevice = () => {
+      if (typeof window === 'undefined') return false;
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(ua);
+      const isIPad = (navigator.platform === 'MacIntel' || /Macintosh/i.test(ua)) && (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+      const isAndroidTablet = /Android/i.test(ua) && !/Mobile/i.test(ua);
+      const isCoarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+      const isFine = window.matchMedia?.('(pointer: fine)')?.matches ?? false;
+
+      // Mobile or tablet if mobile UA, iPad, Android tablet, or coarse touch without mouse
+      return isMobileUA || isIPad || isAndroidTablet || (isCoarse && !isFine);
+    };
+
+    const isMobileOrTablet = checkIsMobileOrTabletDevice();
 
     const defaultSettings: GameSettings = {
       soundEnabled: true,
@@ -97,7 +106,7 @@ export default function App() {
       crtFilter: true,
       colorPalette: 'default',
       showFps: false,
-      showTouchControls: true,
+      showTouchControls: isMobileOrTablet, // FALSE on laptop/desktop, TRUE on mobile/tablet!
       screenShake: true,
       difficulty: 'normal',
       handheldSkin: 'vibrant',
@@ -113,8 +122,11 @@ export default function App() {
         return {
           ...defaultSettings,
           ...parsed,
-          // Always ensure touch controls are enabled on mobile/tablet
-          showTouchControls: isTouchOrMobileDevice ? true : (parsed.showTouchControls ?? true),
+          // Respect explicit setting if saved, otherwise default by device type
+          showTouchControls:
+            parsed.showTouchControls !== undefined
+              ? parsed.showTouchControls
+              : isMobileOrTablet,
           mobileControlMode: parsed.mobileControlMode || 'overlay',
         };
       }

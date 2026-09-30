@@ -18,7 +18,8 @@ import {
 interface NintendoControllerProps {
   engineRef: React.RefObject<GameEngine | null>;
   skin?: HandheldSkin;
-  layout: 'portrait_console' | 'landscape_wings' | 'compact_overlay';
+  layout?: 'portrait_console' | 'landscape_wings' | 'compact_overlay';
+  deviceType?: 'mobile' | 'tablet';
   isVirtualLandscape?: boolean;
   onTogglePause?: () => void;
   onRestart?: () => void;
@@ -29,7 +30,8 @@ interface NintendoControllerProps {
 export const NintendoController: React.FC<NintendoControllerProps> = ({
   engineRef,
   skin = 'vibrant',
-  layout,
+  layout = 'compact_overlay',
+  deviceType = 'mobile',
   isVirtualLandscape = false,
   onTogglePause,
   onRestart,
@@ -83,85 +85,99 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
     let animId: number;
     let hasGamepad = false;
 
-    const onConnect = () => { hasGamepad = true; };
-    const onDisconnect = () => { hasGamepad = false; };
+    const onConnect = () => {
+      hasGamepad = true;
+    };
+    const onDisconnect = () => {
+      hasGamepad = false;
+    };
     window.addEventListener('gamepadconnected', onConnect);
     window.addEventListener('gamepaddisconnected', onDisconnect);
+
+    // Initial check
+    try {
+      const initialGps = navigator.getGamepads ? navigator.getGamepads() : [];
+      if (initialGps && (initialGps[0] || initialGps[1])) {
+        hasGamepad = true;
+      }
+    } catch (e) {}
 
     // Track keys activated by gamepad so we only release what the gamepad pressed
     const gpKeys = { left: false, right: false, up: false, down: false, attack: false, special: false };
 
     const pollGamepad = () => {
-      // Check if gamepad is present
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      const gp = gamepads[0] || gamepads[1];
+      if (hasGamepad && engineRef.current) {
+        try {
+          const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+          const gp = gamepads[0] || gamepads[1];
 
-      if (gp && gp.connected && engineRef.current) {
-        hasGamepad = true;
-        const engine = engineRef.current;
-        const axisX = gp.axes[0] || 0;
-        const axisY = gp.axes[1] || 0;
-        const dpadLeft = !!gp.buttons[14]?.pressed;
-        const dpadRight = !!gp.buttons[15]?.pressed;
-        const dpadUp = !!gp.buttons[12]?.pressed;
-        const dpadDown = !!gp.buttons[13]?.pressed;
+          if (gp && gp.connected) {
+            const engine = engineRef.current;
+            const axisX = gp.axes[0] || 0;
+            const axisY = gp.axes[1] || 0;
+            const dpadLeft = !!gp.buttons[14]?.pressed;
+            const dpadRight = !!gp.buttons[15]?.pressed;
+            const dpadUp = !!gp.buttons[12]?.pressed;
+            const dpadDown = !!gp.buttons[13]?.pressed;
 
-        const left = axisX < -0.3 || dpadLeft;
-        const right = axisX > 0.3 || dpadRight;
-        const down = axisY > 0.3 || dpadDown;
-        const btnA = !!(gp.buttons[0]?.pressed || gp.buttons[1]?.pressed);
-        const up = btnA || axisY < -0.3 || dpadUp;
-        const attack = !!(gp.buttons[2]?.pressed || gp.buttons[3]?.pressed);
-        const special = !!(gp.buttons[5]?.pressed || gp.buttons[7]?.pressed || gp.buttons[4]?.pressed);
+            const left = axisX < -0.35 || dpadLeft;
+            const right = axisX > 0.35 || dpadRight;
+            const down = axisY > 0.35 || dpadDown;
+            const btnA = !!(gp.buttons[0]?.pressed || gp.buttons[1]?.pressed);
+            const up = btnA || axisY < -0.35 || dpadUp;
+            const attack = !!(gp.buttons[2]?.pressed || gp.buttons[3]?.pressed);
+            const special = !!(gp.buttons[5]?.pressed || gp.buttons[7]?.pressed || gp.buttons[4]?.pressed);
 
-        if (left) {
-          engine.keys.left = true;
-          gpKeys.left = true;
-        } else if (gpKeys.left) {
-          engine.keys.left = false;
-          gpKeys.left = false;
-        }
+            if (left) {
+              engine.keys.left = true;
+              gpKeys.left = true;
+            } else if (gpKeys.left) {
+              engine.keys.left = false;
+              gpKeys.left = false;
+            }
 
-        if (right) {
-          engine.keys.right = true;
-          gpKeys.right = true;
-        } else if (gpKeys.right) {
-          engine.keys.right = false;
-          gpKeys.right = false;
-        }
+            if (right) {
+              engine.keys.right = true;
+              gpKeys.right = true;
+            } else if (gpKeys.right) {
+              engine.keys.right = false;
+              gpKeys.right = false;
+            }
 
-        if (down) {
-          engine.keys.down = true;
-          gpKeys.down = true;
-        } else if (gpKeys.down) {
-          engine.keys.down = false;
-          gpKeys.down = false;
-        }
+            if (down) {
+              engine.keys.down = true;
+              gpKeys.down = true;
+            } else if (gpKeys.down) {
+              engine.keys.down = false;
+              gpKeys.down = false;
+            }
 
-        if (up) {
-          if (!gpKeys.up) engine.keys.jumpPressed = true;
-          engine.keys.up = true;
-          gpKeys.up = true;
-        } else if (gpKeys.up) {
-          engine.keys.up = false;
-          gpKeys.up = false;
-        }
+            if (up) {
+              if (!gpKeys.up) engine.keys.jumpPressed = true;
+              engine.keys.up = true;
+              gpKeys.up = true;
+            } else if (gpKeys.up) {
+              engine.keys.up = false;
+              gpKeys.up = false;
+            }
 
-        if (attack) {
-          engine.keys.attack = true;
-          gpKeys.attack = true;
-        } else if (gpKeys.attack) {
-          engine.keys.attack = false;
-          gpKeys.attack = false;
-        }
+            if (attack) {
+              engine.keys.attack = true;
+              gpKeys.attack = true;
+            } else if (gpKeys.attack) {
+              engine.keys.attack = false;
+              gpKeys.attack = false;
+            }
 
-        if (special) {
-          engine.keys.special = true;
-          gpKeys.special = true;
-        } else if (gpKeys.special) {
-          engine.keys.special = false;
-          gpKeys.special = false;
-        }
+            if (special) {
+              engine.keys.special = true;
+              gpKeys.special = true;
+            } else if (gpKeys.special) {
+              engine.keys.special = false;
+              gpKeys.special = false;
+            }
+          }
+        } catch (e) {}
       }
 
       animId = requestAnimationFrame(pollGamepad);
@@ -395,13 +411,17 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
   // ----------------------------------------------------
   // 1. TRANSLUCENT NINTENDO CROSS D-PAD
   // ----------------------------------------------------
+  const isTablet = deviceType === 'tablet';
+
   const renderDpad = () => (
     <div
       ref={dpadRef}
       onPointerDown={(e) => {
         e.preventDefault();
         triggerHaptic(12);
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        try {
+          (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+        } catch (err) {}
         handleDpadPointer(e);
       }}
       onPointerMove={(e) => {
@@ -410,67 +430,87 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
       }}
       onPointerUp={(e) => {
         e.preventDefault();
+        try {
+          (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+        } catch (err) {}
         handleDpadEnd();
       }}
       onPointerCancel={(e) => {
         e.preventDefault();
+        try {
+          (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+        } catch (err) {}
         handleDpadEnd();
       }}
-      className="relative w-32 h-32 sm:w-38 sm:h-38 flex items-center justify-center select-none touch-none"
+      className={`relative ${
+        isTablet ? 'w-44 h-44 md:w-52 md:h-52' : 'w-36 h-36 sm:w-40 sm:h-40'
+      } flex items-center justify-center select-none touch-none`}
       style={{ touchAction: 'none' }}
     >
       {/* Sunken Outer Translucent Well */}
-      <div className="absolute inset-1 rounded-full bg-black/25 backdrop-blur-sm border border-white/15 shadow-inner" />
+      <div className="absolute inset-0 rounded-full bg-black/40 backdrop-blur-md border border-white/25 shadow-[0_8px_32px_rgba(0,0,0,0.6)]" />
 
       {/* The Translucent Cross D-Pad */}
-      <div className="relative w-26 h-26 sm:w-30 sm:h-30 flex items-center justify-center">
+      <div
+        className={`relative ${
+          isTablet ? 'w-36 h-36 md:w-42 md:h-42' : 'w-30 h-30 sm:w-32 sm:h-32'
+        } flex items-center justify-center`}
+      >
         {/* Horizontal Arm */}
         <div
-          className={`absolute left-0 right-0 h-9 sm:h-10.5 rounded-lg flex justify-between px-1.5 items-center pointer-events-none transition-colors duration-150 ${
+          className={`absolute left-0 right-0 ${
+            isTablet ? 'h-12 md:h-14' : 'h-10 sm:h-11'
+          } rounded-2xl flex justify-between px-2 sm:px-2.5 items-center pointer-events-none transition-all duration-150 ${
             activeDpadDir.left || activeDpadDir.right
               ? translucentStyles.dpadActive
               : translucentStyles.dpadArm
           }`}
         >
           <ChevronLeft
-            size={20}
+            size={isTablet ? 26 : 22}
             className={`transition-colors ${
-              activeDpadDir.left ? 'text-[#FFD700] stroke-[3.5]' : 'text-white/70'
+              activeDpadDir.left ? 'text-[#FFD700] stroke-[3.5] drop-shadow-[0_0_8px_#FFD700]' : 'text-white/80'
             }`}
           />
           <ChevronRight
-            size={20}
+            size={isTablet ? 26 : 22}
             className={`transition-colors ${
-              activeDpadDir.right ? 'text-[#FFD700] stroke-[3.5]' : 'text-white/70'
+              activeDpadDir.right ? 'text-[#FFD700] stroke-[3.5] drop-shadow-[0_0_8px_#FFD700]' : 'text-white/80'
             }`}
           />
         </div>
 
         {/* Vertical Arm */}
         <div
-          className={`absolute top-0 bottom-0 w-9 sm:w-10.5 rounded-lg flex flex-col justify-between py-1.5 items-center pointer-events-none transition-colors duration-150 ${
+          className={`absolute top-0 bottom-0 ${
+            isTablet ? 'w-12 md:w-14' : 'w-10 sm:w-11'
+          } rounded-2xl flex flex-col justify-between py-2 sm:py-2.5 items-center pointer-events-none transition-all duration-150 ${
             activeDpadDir.up || activeDpadDir.down
               ? translucentStyles.dpadActive
               : translucentStyles.dpadArm
           }`}
         >
           <ChevronUp
-            size={20}
+            size={isTablet ? 26 : 22}
             className={`transition-colors ${
-              activeDpadDir.up ? 'text-[#FFD700] stroke-[3.5]' : 'text-white/70'
+              activeDpadDir.up ? 'text-[#FFD700] stroke-[3.5] drop-shadow-[0_0_8px_#FFD700]' : 'text-white/80'
             }`}
           />
           <ChevronDown
-            size={20}
+            size={isTablet ? 26 : 22}
             className={`transition-colors ${
-              activeDpadDir.down ? 'text-[#FFD700] stroke-[3.5]' : 'text-white/70'
+              activeDpadDir.down ? 'text-[#FFD700] stroke-[3.5] drop-shadow-[0_0_8px_#FFD700]' : 'text-white/80'
             }`}
           />
         </div>
 
         {/* Center Thumb Pivot (Translucent Concave Indent) */}
-        <div className="absolute w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center pointer-events-none backdrop-blur-sm shadow-inner">
-          <div className="w-2.5 h-2.5 rounded-full bg-white/20" />
+        <div
+          className={`absolute ${
+            isTablet ? 'w-9 h-9 md:w-11 md:h-11' : 'w-8 h-8 sm:w-9 sm:h-9'
+          } rounded-full bg-white/10 border border-white/25 flex items-center justify-center pointer-events-none backdrop-blur-sm shadow-inner`}
+        >
+          <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
         </div>
       </div>
     </div>
@@ -478,67 +518,80 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
 
   // ----------------------------------------------------
   // 2. TRANSLUCENT ACTION BUTTONS (A, B, X, Y)
+  // Ergonomic thumb arc cluster
   // ----------------------------------------------------
   const renderActionButtons = () => (
-    <div className="relative select-none flex flex-col items-center">
-      <div className="relative w-32 h-32 sm:w-38 sm:h-38 flex items-center justify-center -rotate-12">
-        {/* Translucent Base Plate */}
-        <div className="absolute inset-1 bg-black/20 backdrop-blur-sm rounded-3xl border border-white/15 shadow-inner" />
+    <div className="relative select-none flex items-center justify-center">
+      <div
+        className={`relative ${
+          isTablet ? 'w-48 h-48 md:w-56 md:h-56' : 'w-38 h-38 sm:w-42 sm:h-42'
+        } flex items-center justify-center`}
+      >
+        {/* Subtle Frosted Backplate Plate */}
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-md rounded-full border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.5)]" />
 
-        {/* X Button (Top) - Special Skill */}
+        {/* X Button (Top-Right) - Special Skill */}
         <button
           onPointerDown={() => handleActionDown('special')}
           onPointerUp={() => handleActionUp('special')}
           onPointerLeave={() => handleActionUp('special')}
-          className={`absolute top-1 w-11 h-11 sm:w-12.5 sm:h-12.5 rounded-full flex flex-col items-center justify-center font-black transition-all active:scale-95 ${
-            translucentStyles.btnX
-          }`}
+          className={`absolute top-2 right-2 sm:top-2.5 sm:right-2.5 ${
+            isTablet ? 'w-14 h-14 md:w-16 md:h-16' : 'w-12 h-12 sm:w-13 sm:h-13'
+          } rounded-full flex flex-col items-center justify-center transition-all active:scale-90 active:ring-4 active:ring-[#00B4DB]/40 shadow-lg ${
+            activeButtons.x ? 'bg-[#00B4DB]/60 ring-2 ring-white' : 'bg-[#00B4DB]/25 hover:bg-[#00B4DB]/35'
+          } text-[#00B4DB] border-2 sm:border-3 border-[#00B4DB] backdrop-blur-md`}
           title="X - Special Skill"
         >
-          <span className="font-pixel text-[11px] font-black leading-none">X</span>
-          <span className="text-[6.5px] uppercase font-bold tracking-tight">SKILL</span>
+          <Shield size={isTablet ? 20 : 16} strokeWidth={2.5} className="-mb-0.5" />
+          <span className="font-pixel text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider">SKILL</span>
         </button>
 
-        {/* Y Button (Left) - Dash / Boost */}
+        {/* Y Button (Top-Left) - Dash / Boost */}
         <button
           onPointerDown={() => handleActionDown('dash')}
           onPointerUp={() => handleActionUp('dash')}
           onPointerLeave={() => handleActionUp('dash')}
-          className={`absolute left-1 w-11 h-11 sm:w-12.5 sm:h-12.5 rounded-full flex flex-col items-center justify-center font-black transition-all active:scale-95 ${
-            translucentStyles.btnY
-          }`}
-          title="Y - Dash / Boost"
+          className={`absolute top-2 left-2 sm:top-2.5 sm:left-2.5 ${
+            isTablet ? 'w-14 h-14 md:w-16 md:h-16' : 'w-12 h-12 sm:w-13 sm:h-13'
+          } rounded-full flex flex-col items-center justify-center transition-all active:scale-90 active:ring-4 active:ring-[#FFD700]/40 shadow-lg ${
+            activeButtons.y ? 'bg-[#FFD700]/60 ring-2 ring-white' : 'bg-[#FFD700]/25 hover:bg-[#FFD700]/35'
+          } text-[#FFD700] border-2 sm:border-3 border-[#FFD700] backdrop-blur-md`}
+          title="Y - Dash / Evade"
         >
-          <span className="font-pixel text-[11px] font-black leading-none">Y</span>
-          <span className="text-[6.5px] uppercase font-bold tracking-tight">DASH</span>
+          <Zap size={isTablet ? 20 : 16} strokeWidth={2.5} className="fill-[#FFD700] -mb-0.5" />
+          <span className="font-pixel text-[7.5px] sm:text-[8.5px] font-black uppercase tracking-wider">DASH</span>
         </button>
 
-        {/* B Button (Bottom) - Primary Attack / Slash */}
+        {/* B Button (Bottom-Left) - Primary Attack / Slash */}
         <button
           onPointerDown={() => handleActionDown('attack')}
           onPointerUp={() => handleActionUp('attack')}
           onPointerLeave={() => handleActionUp('attack')}
-          className={`absolute bottom-1 w-12 h-12 sm:w-13.5 sm:h-13.5 rounded-full flex flex-col items-center justify-center font-black transition-all active:scale-95 ${
-            translucentStyles.btnB
-          }`}
+          className={`absolute bottom-2 left-2 sm:bottom-2.5 sm:left-2.5 ${
+            isTablet ? 'w-15 h-15 md:w-17 md:h-17' : 'w-13 h-13 sm:w-14.5 sm:h-14.5'
+          } rounded-full flex flex-col items-center justify-center transition-all active:scale-90 active:ring-4 active:ring-[#FF416C]/40 shadow-lg ${
+            activeButtons.b ? 'bg-[#FF416C]/60 ring-2 ring-white' : 'bg-[#FF416C]/25 hover:bg-[#FF416C]/35'
+          } text-white border-2 sm:border-3 border-[#FF416C] backdrop-blur-md`}
           title="B - Attack / Slash"
         >
-          <span className="font-pixel text-xs font-black leading-none">B</span>
-          <span className="text-[6.5px] uppercase font-bold tracking-tight">SLASH</span>
+          <Sword size={isTablet ? 22 : 18} strokeWidth={2.5} className="-mb-0.5" />
+          <span className="font-pixel text-[8px] sm:text-[9px] font-black uppercase tracking-wider">SLASH</span>
         </button>
 
-        {/* A Button (Right) - Primary Jump */}
+        {/* A Button (Bottom-Right) - Primary Jump (Prominent) */}
         <button
           onPointerDown={() => handleActionDown('jump')}
           onPointerUp={() => handleActionUp('jump')}
           onPointerLeave={() => handleActionUp('jump')}
-          className={`absolute right-1 w-12 h-12 sm:w-13.5 sm:h-13.5 rounded-full flex flex-col items-center justify-center font-black transition-all active:scale-95 ${
-            translucentStyles.btnA
-          }`}
+          className={`absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 ${
+            isTablet ? 'w-16 h-16 md:w-19 md:h-19' : 'w-14 h-14 sm:w-15.5 sm:h-15.5'
+          } rounded-full flex flex-col items-center justify-center transition-all active:scale-90 active:ring-4 active:ring-[#00FFD1]/40 shadow-[0_0_20px_rgba(0,255,209,0.35)] ${
+            activeButtons.a ? 'bg-[#00FFD1]/65 ring-2 ring-white text-black' : 'bg-[#00FFD1]/25 hover:bg-[#00FFD1]/40 text-[#00FFD1]'
+          } border-3 sm:border-4 border-[#00FFD1] backdrop-blur-md`}
           title="A - Jump"
         >
-          <span className="font-pixel text-xs font-black leading-none">A</span>
-          <span className="text-[6.5px] uppercase font-bold tracking-tight">JUMP</span>
+          <ChevronUp size={isTablet ? 26 : 22} strokeWidth={3.5} className="-mb-0.5" />
+          <span className="font-pixel text-[9px] sm:text-[10px] font-black uppercase tracking-wider">JUMP</span>
         </button>
       </div>
     </div>
@@ -665,11 +718,11 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
   if (layout === 'landscape_wings') {
     return (
       <div
-        className="fixed inset-0 pointer-events-none flex justify-between z-40 select-none"
+        className="absolute inset-0 pointer-events-none z-30 flex justify-between select-none"
         style={{ touchAction: 'none' }}
       >
         {/* LEFT WING: Translucent L-Shoulder & D-Pad */}
-        <div className="pointer-events-auto h-full flex flex-col justify-between p-2 sm:p-3.5 bg-black/35 backdrop-blur-md border-r border-white/20 min-w-[135px] sm:min-w-[165px]">
+        <div className="pointer-events-auto h-full flex flex-col justify-between p-2 sm:p-4 bg-black/25 backdrop-blur-sm border-r border-white/15 min-w-[140px] sm:min-w-[170px]">
           <button
             onPointerDown={() => handleActionDown('dash')}
             onPointerUp={() => handleActionUp('dash')}
@@ -678,18 +731,20 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
             L - DASH
           </button>
 
-          <div className="my-auto scale-95 sm:scale-105 origin-left">{renderDpad()}</div>
+          <div className="my-auto">{renderDpad()}</div>
 
           <div className="flex items-center gap-1.5">
-            <button
-              onPointerDown={() => {
-                triggerHaptic(20);
-                onSelectHero?.();
-              }}
-              className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/25 backdrop-blur-sm rounded-lg text-[8px] font-pixel text-white/80 active:translate-y-0.5"
-            >
-              HERO
-            </button>
+            {onSelectHero && (
+              <button
+                onPointerDown={() => {
+                  triggerHaptic(20);
+                  onSelectHero();
+                }}
+                className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/25 backdrop-blur-sm rounded-lg text-[8px] font-pixel text-white/80 active:translate-y-0.5"
+              >
+                HERO
+              </button>
+            )}
             <button
               onPointerDown={() => {
                 triggerHaptic(25);
@@ -703,7 +758,7 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
         </div>
 
         {/* RIGHT WING: Translucent R-Shoulder & Action Buttons */}
-        <div className="pointer-events-auto h-full flex flex-col justify-between p-2 sm:p-3.5 bg-black/35 backdrop-blur-md border-l border-white/20 items-end min-w-[135px] sm:min-w-[165px]">
+        <div className="pointer-events-auto h-full flex flex-col justify-between p-2 sm:p-4 bg-black/25 backdrop-blur-sm border-l border-white/15 items-end min-w-[140px] sm:min-w-[170px]">
           <button
             onPointerDown={() => handleActionDown('special')}
             onPointerUp={() => handleActionUp('special')}
@@ -712,7 +767,7 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
             R - BOOST
           </button>
 
-          <div className="my-auto scale-95 sm:scale-105 origin-right">{renderActionButtons()}</div>
+          <div className="my-auto">{renderActionButtons()}</div>
 
           <button
             onPointerDown={() => {
@@ -729,61 +784,80 @@ export const NintendoController: React.FC<NintendoControllerProps> = ({
   }
 
   // ----------------------------------------------------
-  // LAYOUT 3: COMPACT TRANSLUCENT FLOATING OVERLAY
+  // LAYOUT 3: PROFESSIONAL ERGONOMIC TRANSLUCENT FLOATING OVERLAY (Default for Mobile & Tablet)
+  // Perfectly placed in the natural thumb resting zones with no intrusive boxes!
   // ----------------------------------------------------
   return (
     <div
-      className="fixed bottom-2 left-0 right-0 z-50 pointer-events-none px-2 sm:px-6 pb-2 flex items-end justify-between select-none"
+      className="absolute inset-0 pointer-events-none z-30 select-none overflow-hidden"
       style={{ touchAction: 'none' }}
     >
-      {/* LEFT POD: Translucent D-Pad + L-Dash & Quick Restart */}
-      <div className="pointer-events-auto flex flex-col items-center gap-1.5 bg-black/35 backdrop-blur-md p-2 rounded-3xl border border-white/25 shadow-2xl">
-        <div className="flex items-center gap-2 w-full justify-between px-1">
-          <button
-            onPointerDown={() => handleActionDown('dash')}
-            onPointerUp={() => handleActionUp('dash')}
-            className={`px-3 py-1 rounded-xl font-pixel text-[8px] font-black uppercase shadow-sm ${translucentStyles.shoulderBg}`}
-          >
-            L - DASH
-          </button>
-          <button
-            onPointerDown={() => {
-              triggerHaptic(25);
-              onRestart?.();
-            }}
-            className="px-2 py-1 bg-[#00FFD1]/20 hover:bg-[#00FFD1]/30 active:bg-[#00FFD1]/50 border border-[#00FFD1]/40 rounded-lg text-[8px] font-pixel text-[#00FFD1] active:translate-y-0.5"
-            title="Restart Stage"
-          >
-            RESTART
-          </button>
-        </div>
-
-        <div className="scale-95 sm:scale-100 origin-center">{renderDpad()}</div>
+      {/* LEFT THUMB ZONE: Clean Floating Translucent D-Pad */}
+      <div
+        className={`absolute pointer-events-auto ${
+          isTablet
+            ? 'bottom-6 left-6 md:bottom-10 md:left-10'
+            : 'bottom-3 left-3 sm:bottom-5 sm:left-5'
+        }`}
+      >
+        {renderDpad()}
       </div>
 
-      {/* RIGHT POD: Translucent ABXY Diamond + R-Boost & Pause */}
-      <div className="pointer-events-auto flex flex-col items-center gap-1.5 bg-black/35 backdrop-blur-md p-2 rounded-3xl border border-white/25 shadow-2xl">
-        <div className="flex items-center gap-2 w-full justify-between px-1">
+      {/* RIGHT THUMB ZONE: Clean Floating Translucent Action Arc (Jump, Slash, Dash, Skill) */}
+      <div
+        className={`absolute pointer-events-auto ${
+          isTablet
+            ? 'bottom-6 right-6 md:bottom-10 md:right-10'
+            : 'bottom-3 right-3 sm:bottom-5 sm:right-5'
+        }`}
+      >
+        {renderActionButtons()}
+      </div>
+
+      {/* TOP UTILITY CORNER: Discreet Frosted Glass Pause & Restart Buttons (Out of Thumb Reach) */}
+      <div
+        className={`absolute pointer-events-auto flex items-center gap-2 ${
+          isTablet
+            ? 'top-14 right-6 md:top-16 md:right-8'
+            : 'top-12 right-2.5 sm:top-14 sm:right-4'
+        }`}
+      >
+        <button
+          onPointerDown={() => {
+            triggerHaptic(20);
+            onRestart?.();
+          }}
+          className="px-2.5 sm:px-3 py-1 bg-black/40 hover:bg-black/60 active:scale-95 text-[#00FFD1] text-[8px] sm:text-[9px] font-pixel border border-white/20 backdrop-blur-md rounded-full shadow-md flex items-center gap-1 uppercase transition-all"
+          title="Restart Stage"
+        >
+          <RotateCcw size={11} />
+          <span>RESTART</span>
+        </button>
+
+        <button
+          onPointerDown={() => {
+            triggerHaptic(20);
+            onTogglePause?.();
+          }}
+          className="px-2.5 sm:px-3 py-1 bg-black/40 hover:bg-black/60 active:scale-95 text-[#FFD700] text-[8px] sm:text-[9px] font-pixel border border-white/20 backdrop-blur-md rounded-full shadow-md flex items-center gap-1 uppercase transition-all"
+          title="Pause Game"
+        >
+          <Pause size={11} />
+          <span>PAUSE</span>
+        </button>
+
+        {onSelectHero && (
           <button
             onPointerDown={() => {
-              triggerHaptic(25);
-              onTogglePause?.();
+              triggerHaptic(20);
+              onSelectHero();
             }}
-            className="px-2.5 py-1 bg-white/15 hover:bg-white/25 active:bg-white/40 border border-white/30 rounded-lg text-[8px] font-pixel text-[#FFD700] active:translate-y-0.5"
-            title="Pause / Resume"
+            className="px-2.5 sm:px-3 py-1 bg-black/40 hover:bg-black/60 active:scale-95 text-white/90 text-[8px] sm:text-[9px] font-pixel border border-white/20 backdrop-blur-md rounded-full shadow-md flex items-center gap-1 uppercase transition-all"
+            title="Switch Hero"
           >
-            PAUSE
+            <span>HERO</span>
           </button>
-          <button
-            onPointerDown={() => handleActionDown('special')}
-            onPointerUp={() => handleActionUp('special')}
-            className={`px-3 py-1 rounded-xl font-pixel text-[8px] font-black uppercase shadow-sm ${translucentStyles.shoulderBg}`}
-          >
-            R - BOOST
-          </button>
-        </div>
-
-        <div className="scale-95 sm:scale-100 origin-center">{renderActionButtons()}</div>
+        )}
       </div>
     </div>
   );

@@ -77,7 +77,42 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Device & Orientation State
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
-  const [isMobileOrTablet, setIsMobileOrTablet] = useState(true);
+  // Accurately detect whether device is a mobile phone / tablet vs a laptop / desktop PC
+  const checkIsMobileOrTabletDevice = () => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(ua);
+    const isIPad = (navigator.platform === 'MacIntel' || /Macintosh/i.test(ua)) && (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+    const isAndroidTablet = /Android/i.test(ua) && !/Mobile/i.test(ua);
+    const isCoarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+    const isFine = window.matchMedia?.('(pointer: fine)')?.matches ?? false;
+
+    // Mobile or tablet if mobile UA, iPad, Android tablet, or coarse touch without fine mouse
+    return isMobileUA || isIPad || isAndroidTablet || (isCoarse && !isFine);
+  };
+
+  const checkIsTabletDevice = () => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isIPad = (navigator.platform === 'MacIntel' || /Macintosh/i.test(ua)) && (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+    const isAndroidTablet = /Android/i.test(ua) && !/Mobile/i.test(ua);
+    const isTabletUA = /iPad|Tablet|Silk/i.test(ua);
+    const isLargeTouch = ('ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0)) && window.innerWidth >= 768;
+    return isIPad || isAndroidTablet || isTabletUA || isLargeTouch;
+  };
+
+  // State: Laptop/Desktop defaults to FALSE (no touch controls), Mobile & Tablet defaults to TRUE
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState<boolean>(() => {
+    const isTouchDevice = checkIsMobileOrTabletDevice();
+    if (settings.showTouchControls !== undefined) {
+      return isTouchDevice ? settings.showTouchControls !== false : settings.showTouchControls === true;
+    }
+    return isTouchDevice;
+  });
+  const [deviceType, setDeviceType] = useState<'mobile' | 'tablet'>(() => {
+    return checkIsTabletDevice() ? 'tablet' : 'mobile';
+  });
+
   const [forcedOrientation, setForcedOrientation] = useState<'auto' | 'landscape' | 'portrait'>(
     settings.forceOrientation || 'auto'
   );
@@ -91,22 +126,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   }, [settings.forceOrientation]);
 
-  // Accurately detect whether device is a mobile phone / tablet vs a PC / laptop
+  // Synchronize device detection and window dimensions
   useEffect(() => {
     const detectDevice = () => {
       if (typeof window === 'undefined') return;
-      const ua = navigator.userAgent || '';
-      // Mobile and tablet user agents (iPhone, iPad, Android tablets/phones, etc.)
-      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(ua);
-      const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
-      const isTabletOrMobileScreen = window.innerWidth <= 1280;
-      const isTouchOrMobile = isMobileUA || hasTouch || isTabletOrMobileScreen;
+      const isActualMobileOrTablet = checkIsMobileOrTabletDevice();
+      const isTablet = checkIsTabletDevice();
+      setDeviceType(isTablet ? 'tablet' : 'mobile');
 
-      // On mobile, tablet, or touch screen: ALWAYS true!
-      // On desktop PC: true if settings.showTouchControls is true.
-      const shouldShowControls = isTouchOrMobile || !!settings.showTouchControls;
+      // Laptop/Desktop PC: Controls hidden by default (user uses keyboard!)
+      // Mobile / Tablet: Controls shown by default
+      const shouldShowControls = isActualMobileOrTablet
+        ? (settings.showTouchControls !== false)
+        : (settings.showTouchControls === true);
+
       setIsMobileOrTablet(shouldShowControls);
-
       setWindowWidth(window.innerWidth);
       setWindowHeight(window.innerHeight);
       setIsFullscreen(!!document.fullscreenElement);
@@ -130,11 +164,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ? physicalIsLandscape
       : forcedOrientation === 'landscape';
 
-  // Virtual Landscape: When Landscape is active but physical phone is held vertically in portrait
-  const needsVirtualLandscape = effectiveIsLandscape && !physicalIsLandscape;
+  // Virtual Landscape: When phone is physically held vertically in portrait, but landscape orientation is desired.
+  // ONLY for actual mobile devices (never rotate desktop PC screen!)
+  const isMobileUA = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobi|Silk/i.test(navigator.userAgent || '');
+  const needsVirtualLandscape = isMobileUA && effectiveIsLandscape && !physicalIsLandscape;
 
   // Only consider portrait handheld console mode if in portrait and not in virtual landscape
-  const isPortraitHandheld = isMobileOrTablet && !effectiveIsLandscape;
+  const isPortraitHandheld = !effectiveIsLandscape && !needsVirtualLandscape;
 
   // Toggle On-Screen Touch Controls directly from HUD
   const handleToggleTouchControls = () => {
@@ -278,12 +314,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Keyboard handlers (PC Controls)
     const handleKeyDown = (e: KeyboardEvent) => {
-      const code = e.code;
-      const k = e.key ? e.key.toLowerCase() : '';
+      const code = e.code || '';
+      const k = (e.key || '').toLowerCase();
 
+      // Prevent scrolling on game control keys
       if (
-        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyZ', 'KeyX', 'KeyC', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(code) ||
-        ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'spacebar', 'z', 'x', 'c', 'a', 'd', 'w', 's'].includes(k)
+        ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyY', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(code) ||
+        ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'spacebar', 'z', 'x', 'c', 'v', 'y', 'a', 'd', 'w', 's'].includes(k)
       ) {
         e.preventDefault();
       }
@@ -294,15 +331,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         return;
       }
 
+      // Pause Hotkey (Escape or P)
+      if ((code === 'Escape' || code === 'KeyP' || k === 'escape' || k === 'p') && !e.repeat) {
+        handleTogglePause();
+        return;
+      }
+
       const activeEngine = engineRef.current || engine;
       if (!activeEngine) return;
 
+      // Horizontal movement: A / D / Left / Right
       if (code === 'ArrowLeft' || code === 'KeyA' || k === 'arrowleft' || k === 'a') {
         activeEngine.keys.left = true;
       }
       if (code === 'ArrowRight' || code === 'KeyD' || k === 'arrowright' || k === 'd') {
         activeEngine.keys.right = true;
       }
+
+      // Jump: Space / W / Up / Z
       if (
         code === 'ArrowUp' ||
         code === 'KeyW' ||
@@ -317,39 +363,47 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         activeEngine.keys.up = true;
         activeEngine.keys.jumpPressed = true;
       }
+
+      // Down / Crouch: S / Down
       if (code === 'ArrowDown' || code === 'KeyS' || k === 'arrowdown' || k === 's') {
         activeEngine.keys.down = true;
       }
+
+      // Attack / Slash: X / J
       if (code === 'KeyX' || code === 'KeyJ' || k === 'x' || k === 'j') {
         activeEngine.keys.attack = true;
       }
+
+      // Special Ability / Dash: C / K / V / Y / Shift
       if (
         code === 'KeyC' ||
         code === 'KeyK' ||
+        code === 'KeyV' ||
+        code === 'KeyY' ||
         code === 'ShiftLeft' ||
         code === 'ShiftRight' ||
         k === 'c' ||
         k === 'k' ||
+        k === 'v' ||
+        k === 'y' ||
         k === 'shift'
       ) {
         activeEngine.keys.special = true;
       }
-      if (code === 'Escape' || code === 'KeyP' || k === 'escape' || k === 'p') {
-        setIsPaused((prev) => {
-          activeEngine.isPaused = !prev;
-          return !prev;
-        });
-      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      const code = e.code;
-      const k = e.key ? e.key.toLowerCase() : '';
+      const code = e.code || '';
+      const k = (e.key || '').toLowerCase();
       const activeEngine = engineRef.current || engine;
       if (!activeEngine) return;
 
-      if (code === 'ArrowLeft' || code === 'KeyA' || k === 'arrowleft' || k === 'a') activeEngine.keys.left = false;
-      if (code === 'ArrowRight' || code === 'KeyD' || k === 'arrowright' || k === 'd') activeEngine.keys.right = false;
+      if (code === 'ArrowLeft' || code === 'KeyA' || k === 'arrowleft' || k === 'a') {
+        activeEngine.keys.left = false;
+      }
+      if (code === 'ArrowRight' || code === 'KeyD' || k === 'arrowright' || k === 'd') {
+        activeEngine.keys.right = false;
+      }
       if (
         code === 'ArrowUp' ||
         code === 'KeyW' ||
@@ -363,23 +417,52 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       ) {
         activeEngine.keys.up = false;
       }
-      if (code === 'ArrowDown' || code === 'KeyS' || k === 'arrowdown' || k === 's') activeEngine.keys.down = false;
-      if (code === 'KeyX' || code === 'KeyJ' || k === 'x' || k === 'j') activeEngine.keys.attack = false;
+      if (code === 'ArrowDown' || code === 'KeyS' || k === 'arrowdown' || k === 's') {
+        activeEngine.keys.down = false;
+      }
+      if (code === 'KeyX' || code === 'KeyJ' || k === 'x' || k === 'j') {
+        activeEngine.keys.attack = false;
+      }
       if (
         code === 'KeyC' ||
         code === 'KeyK' ||
+        code === 'KeyV' ||
+        code === 'KeyY' ||
         code === 'ShiftLeft' ||
         code === 'ShiftRight' ||
         k === 'c' ||
         k === 'k' ||
+        k === 'v' ||
+        k === 'y' ||
         k === 'shift'
       ) {
         activeEngine.keys.special = false;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    const handleWindowBlur = () => {
+      const activeEngine = engineRef.current || engine;
+      if (activeEngine) {
+        activeEngine.keys = {
+          left: false,
+          right: false,
+          up: false,
+          down: false,
+          attack: false,
+          special: false,
+          jumpPressed: false,
+        };
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    window.addEventListener('blur', handleWindowBlur);
+
+    // Initial focus on canvas
+    try {
+      canvas.focus();
+    } catch (e) {}
 
     // Timer sync loop for HUD
     const hudInterval = setInterval(() => {
@@ -394,8 +477,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }, 100);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true } as any);
+      window.removeEventListener('keyup', handleKeyUp, { capture: true } as any);
+      window.removeEventListener('blur', handleWindowBlur);
       clearInterval(hudInterval);
       engine.stop();
     };
@@ -503,19 +587,21 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       {/* ----------------------------------------------------
           CANVAS VIEWPORT
-          On PC: pristine 16:9 box with no on-screen touch controls
-          On Mobile/Tablet: widescreen with translucent controls
+          On PC: pristine 16:9 box with keyboard controls
+          On Mobile/Tablet: widescreen with translucent on-screen controls
           ---------------------------------------------------- */}
       <div
         className={`relative w-full ${
-          isPortraitHandheld
+          isPortraitHandheld && settings.mobileControlMode === 'handheld'
             ? 'flex-none aspect-video border-b-2 border-white/20 bg-[#24243e] shadow-lg'
             : 'max-w-5xl aspect-video flex items-center justify-center rounded-2xl overflow-hidden shadow-[0_12px_36px_rgba(0,0,0,0.8)] border-2 sm:border-4 border-[#302b63] bg-[#24243e] max-h-[96vh]'
         }`}
       >
         <canvas
           ref={canvasRef}
-          className="w-full h-full pixelated block object-contain"
+          tabIndex={0}
+          onClick={() => canvasRef.current?.focus()}
+          className="w-full h-full pixelated block object-contain outline-none focus:outline-none"
           style={{
             imageRendering: 'pixelated',
             cssText: getFilterStyle(),
@@ -762,37 +848,42 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             </div>
           </div>
         )}
-      </div>
 
-      {/* ----------------------------------------------------
-          TRANSPARENT ON-SCREEN TOUCH CONTROLS (Mobile & Tablet)
-          Frosted glass translucent D-Pad on left, ABXY diamond on right.
-          Completely see-through to the game canvas underneath!
-          ---------------------------------------------------- */}
-      {isMobileOrTablet && (
-        isPortraitHandheld && settings.mobileControlMode === 'handheld' ? (
-          <NintendoController
-            engineRef={engineRef}
-            skin={settings.handheldSkin || 'vibrant'}
-            layout="portrait_console"
-            isVirtualLandscape={false}
-            onTogglePause={handleTogglePause}
-            onRestart={handleRestartStage}
-            onSelectHero={onSelectHero}
-            vibrationEnabled={settings.vibrationEnabled ?? true}
-          />
-        ) : (
+        {/* ----------------------------------------------------
+            TRANSPARENT ON-SCREEN TOUCH CONTROLS (Mobile & Tablet)
+            Frosted glass translucent D-Pad on left, ABXY diamond on right.
+            Directly overlaid on top of the widescreen game canvas!
+            ---------------------------------------------------- */}
+        {isMobileOrTablet && !(isPortraitHandheld && settings.mobileControlMode === 'handheld') && (
           <NintendoController
             engineRef={engineRef}
             skin={settings.handheldSkin || 'vibrant'}
             layout={settings.mobileControlMode === 'handheld' ? 'landscape_wings' : 'compact_overlay'}
+            deviceType={deviceType}
             isVirtualLandscape={needsVirtualLandscape}
             onTogglePause={handleTogglePause}
             onRestart={handleRestartStage}
             onSelectHero={onSelectHero}
             vibrationEnabled={settings.vibrationEnabled ?? true}
           />
-        )
+        )}
+      </div>
+
+      {/* ----------------------------------------------------
+          PORTRAIT GAME BOY CONSOLE BODY (When player explicitly selects handheld mode)
+          ---------------------------------------------------- */}
+      {isMobileOrTablet && isPortraitHandheld && settings.mobileControlMode === 'handheld' && (
+        <NintendoController
+          engineRef={engineRef}
+          skin={settings.handheldSkin || 'vibrant'}
+          layout="portrait_console"
+          deviceType={deviceType}
+          isVirtualLandscape={false}
+          onTogglePause={handleTogglePause}
+          onRestart={handleRestartStage}
+          onSelectHero={onSelectHero}
+          vibrationEnabled={settings.vibrationEnabled ?? true}
+        />
       )}
 
       {/* ----------------------------------------------------

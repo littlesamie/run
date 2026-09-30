@@ -13,7 +13,21 @@ export const OrientationPrompt: React.FC<OrientationPromptProps> = ({
   onSelectPortrait,
 }) => {
   const [isPortrait, setIsPortrait] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('pixel_quest_orientation_dismissed') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      sessionStorage.setItem('pixel_quest_orientation_dismissed', 'true');
+    } catch (e) {}
+    onDismiss?.();
+  };
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -78,10 +92,7 @@ export const OrientationPrompt: React.FC<OrientationPromptProps> = ({
       <div className="relative bg-[#1a1a2e] border-4 border-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-[8px_8px_0_0_#000] flex flex-col items-center space-y-5">
         {/* Dismiss Button */}
         <button
-          onClick={() => {
-            setDismissed(true);
-            onDismiss?.();
-          }}
+          onClick={handleDismiss}
           className="absolute top-3 right-3 p-2 text-[#8E9299] hover:text-white bg-[#24243e] rounded-xl border-2 border-white/40 active:translate-x-0.5 active:translate-y-0.5"
           title="Dismiss notice"
         >
@@ -115,7 +126,7 @@ export const OrientationPrompt: React.FC<OrientationPromptProps> = ({
           <button
             onClick={() => {
               handleRequestFullscreen();
-              setDismissed(true);
+              handleDismiss();
             }}
             className="w-full py-3.5 bg-[#FFD700] hover:bg-[#ffea00] text-black font-black text-xs rounded-xl shadow-[4px_4px_0_0_#B8860B] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_#B8860B] transition-all flex items-center justify-center gap-2 border-3 border-black uppercase italic"
           >
@@ -125,9 +136,8 @@ export const OrientationPrompt: React.FC<OrientationPromptProps> = ({
 
           <button
             onClick={() => {
-              setDismissed(true);
+              handleDismiss();
               onSelectPortrait?.();
-              onDismiss?.();
             }}
             className="w-full py-2.5 bg-[#24243e] hover:bg-[#302b63] text-[#00FFD1] font-black text-xs rounded-xl border-2 border-white/60 active:translate-x-0.5 active:translate-y-0.5 transition-all uppercase"
           >
